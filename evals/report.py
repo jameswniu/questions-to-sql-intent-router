@@ -1,4 +1,7 @@
 import json
+import os
+import tempfile
+from decimal import Decimal
 from fnmatch import fnmatch
 from typing import Any, NamedTuple
 
@@ -34,8 +37,31 @@ def read() -> dict[str, Any]:
     return json.loads(REPORT.read_text()) if REPORT.exists() else {}
 
 
+def _plain(value: object) -> float:
+    # The live section's model costs are summed as exact Decimals, and the report holds them as JSON numbers.
+    if isinstance(value, Decimal):
+        return float(value)
+    raise TypeError(f"a {type(value).__name__} can't be written into the report")
+
+
 def dump(report: dict[str, Any]) -> str:
-    return json.dumps(report, sort_keys=True, indent=2, ensure_ascii=False) + "\n"
+    return json.dumps(report, sort_keys=True, indent=2, ensure_ascii=False, default=_plain) + "\n"
+
+
+def write(report: dict[str, Any]) -> None:
+    """Replaces the report in one step, so a run stopped halfway leaves the old report whole rather than a truncated
+    one that the docs and CI read."""
+    text = dump(report)
+    fd, tmp = tempfile.mkstemp(dir=REPORT.parent, prefix=".report-", suffix=".json")
+    try:
+        with os.fdopen(fd, "w") as fh:
+            fh.write(text)
+            fh.flush()
+            os.fsync(fh.fileno())
+        os.replace(tmp, REPORT)
+    except BaseException:
+        os.unlink(tmp)
+        raise
 
 
 def flatten(value: Any, prefix: str = "") -> dict[str, Any]:
@@ -88,38 +114,46 @@ def _short(value: Any) -> str:
     return text if len(text) <= 48 else text[:45] + "..."
 
 
-def value(section: Any, *path: str) -> Any:
+def entry(section: Any, *path: str) -> Any:
+    """What the report holds at the path, a rate whole with its hits and n, or None."""
     for key in path:
         if not isinstance(section, dict) or key not in section:
             return None
         section = section[key]
-    return section["value"] if isinstance(section, dict) and "value" in section else section
+    return section
 
 
-def headline(section: dict[str, Any], shared: dict[str, Any]) -> dict[str, Any]:
-    """The few numbers the dashboard shows per eval run."""
+def value(section: Any, *path: str) -> Any:
+    found = entry(section, *path)
+    return found["value"] if isinstance(found, dict) and "value" in found else found
+
+
+def headline(section: dict[str, Any], shared: dict[str, Any], *, whole: bool = False) -> dict[str, Any]:
+    """The few numbers the dashboard shows per eval run. whole keeps each rate as the report holds it, hits and n
+    included, which the live section needs to say x of n."""
+    pick = entry if whole else value
     metrics: dict[str, dict[str, Any]] = {
         "routing": {
-            "accuracy": value(section, "routing", "accuracy"),
-            "macro_f1": value(section, "routing", "macro_f1"),
+            "accuracy": pick(section, "routing", "accuracy"),
+            "macro_f1": pick(section, "routing", "macro_f1"),
         },
         "refusal": {
-            "f1": value(section, "refusal", "f1"),
-            "false_refusal": value(section, "refusal", "false_refusal"),
-            "injections_missed": value(section, "refusal", "injections_missed"),
+            "f1": pick(section, "refusal", "f1"),
+            "false_refusal": pick(section, "refusal", "false_refusal"),
+            "injections_missed": pick(section, "refusal", "injections_missed"),
         },
-        "abstention": {"wrong_answer": value(section, "abstention", "wrong_answer")},
-        "sql": {"execution_accuracy": value(section, "sql", "execution_accuracy")},
-        "retrieval": {f"{m}_recall_at_5": value(section, "retrieval", m, "recall_at_5") for m in ("lexical", "hybrid")},
+        "abstention": {"wrong_answer": pick(section, "abstention", "wrong_answer")},
+        "sql": {"execution_accuracy": pick(section, "sql", "execution_accuracy")},
+        "retrieval": {f"{m}_recall_at_5": pick(section, "retrieval", m, "recall_at_5") for m in ("lexical", "hybrid")},
         "answers": {
-            "grounded": value(section, "answers", "grounded"),
-            "fact_recall": value(section, "answers", "fact_recall"),
+            "grounded": pick(section, "answers", "grounded"),
+            "fact_recall": pick(section, "answers", "fact_recall"),
         },
-        "why": {"driver_named": value(section, "why", "driver_named"), "cited": value(section, "why", "cited")},
-        "ocr": {"answers": value(section, "ocr", "pass"), "total_cer": value(shared, "ocr_extraction", "total_cer")},
-        "permissions": {"leaks": value(section, "permissions", "leaks")},
-        "verifier": {"recall": value(shared, "verifier", "recall")},
-        "hostile_sql": {"harmful": value(shared, "hostile_sql", "harmful")},
+        "why": {"driver_named": pick(section, "why", "driver_named"), "cited": pick(section, "why", "cited")},
+        "ocr": {"answers": pick(section, "ocr", "pass"), "total_cer": pick(shared, "ocr_extraction", "total_cer")},
+        "permissions": {"leaks": pick(section, "permissions", "leaks")},
+        "verifier": {"recall": pick(shared, "verifier", "recall")},
+        "hostile_sql": {"harmful": pick(shared, "hostile_sql", "harmful")},
     }
     kept = {group: {k: v for k, v in numbers.items() if v is not None} for group, numbers in metrics.items()}
     return {group: numbers for group, numbers in kept.items() if numbers}

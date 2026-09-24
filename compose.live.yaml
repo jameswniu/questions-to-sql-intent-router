@@ -1,18 +1,37 @@
 # Live mode: docker compose -f compose.yaml -f compose.live.yaml up -d, with LLM_BACKEND and its settings in .env or the shell.
+# make eval-live runs the test service under the same settings.
+x-live-env: &live-env
+  LLM_BACKEND: ${LLM_BACKEND:-off}
+  LIVE_FAST_MODEL: ${LIVE_FAST_MODEL:-claude-haiku-4-5}
+  LIVE_MAIN_MODEL: ${LIVE_MAIN_MODEL:-claude-sonnet-5}
+  LLM_CHECK_BACKEND: ${LLM_CHECK_BACKEND:-}
+  LIVE_CHECK_MODEL: ${LIVE_CHECK_MODEL:-}
+  ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+  VERTEX_PROJECT_ID: ${VERTEX_PROJECT_ID:-}
+  VERTEX_REGION: ${VERTEX_REGION:-global}
+  GEMINI_PROJECT: ${GEMINI_PROJECT:-${VERTEX_PROJECT_ID:-}}
+  GEMINI_LOCATION: ${GEMINI_LOCATION:-global}
+  GOOGLE_APPLICATION_CREDENTIALS: /run/gcloud/application_default_credentials.json
+
+x-gcloud-credentials: &gcloud-credentials
+  type: bind
+  # make sets GCLOUD_ADC to an empty stand-in when gcloud has no credentials file, so a setup on an Anthropic key
+  # alone still starts. The Anthropic API never reads it.
+  source: ${GCLOUD_ADC:-${HOME}/.config/gcloud/application_default_credentials.json}
+  target: /run/gcloud/application_default_credentials.json
+  read_only: true
+  bind:
+    create_host_path: false
+
 services:
   app:
-    environment:
-      LLM_BACKEND: ${LLM_BACKEND:-off}
-      LIVE_FAST_MODEL: ${LIVE_FAST_MODEL:-claude-haiku-4-5}
-      LIVE_MAIN_MODEL: ${LIVE_MAIN_MODEL:-claude-sonnet-5}
-      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
-      VERTEX_PROJECT_ID: ${VERTEX_PROJECT_ID:-}
-      VERTEX_REGION: ${VERTEX_REGION:-global}
-      GOOGLE_APPLICATION_CREDENTIALS: /run/gcloud/application_default_credentials.json
+    environment: *live-env
     volumes:
-      - type: bind
-        source: ${HOME}/.config/gcloud/application_default_credentials.json
-        target: /run/gcloud/application_default_credentials.json
-        read_only: true
-        bind:
-          create_host_path: false
+      - *gcloud-credentials
+
+  test:
+    environment: *live-env
+    volumes:
+      - *gcloud-credentials
+    # The backend network is internal and the models are on the internet, so a live eval also joins frontend.
+    networks: [backend, frontend]

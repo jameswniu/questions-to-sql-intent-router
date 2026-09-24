@@ -31,7 +31,7 @@ The first run builds the images, seeds 6,951 claims and reads 60 scanned forms. 
 
 The gate turns away injection attempts, coding requests, chit-chat and common off-topic subjects. Keyword rules then pick a path, and a question none of them places gets a list of what the app can answer. Figure questions go through a semantic layer that turns the question into a typed query and compiles it to SQL over three views. Questions about the documents go to search over the policy wordings, guidelines, memos and adjuster notes. "Why did this change" questions split the change by driver in a sandbox, then find the memo or bulletin from that period. Before anything reaches the screen, a verifier checks every figure against the query results and every citation against what was retrieved for this user, and cuts any sentence that fails. The evidence panel shows the SQL, rows and passages behind each answer.
 
-None of that needs a language model. The only models are a small embedder and a reranker that ship inside the image. Live mode, switched on with `LLM_BACKEND`, adds Claude. It places questions the keyword rules can't, reads figure questions the extractor can't parse, writes document answers from their passages, and runs why questions with an orchestrator and three helpers. No model gets both tools and document text, so an instruction hidden in a note has no tool to reach.
+None of that needs a language model. The only models are a small embedder and a reranker that ship inside the image. Live mode, switched on with `LLM_BACKEND`, adds Claude. It places questions the keyword rules can't, reads figure questions the extractor can't parse, writes document answers from their passages, and runs why questions with an orchestrator and three helpers. No model gets both tools and document text, so an instruction hidden in a note has no tool to reach. With `LLM_CHECK_BACKEND=gemini`, Gemini reads each written sentence against the passage it cites, so the check doesn't come from the writer's own model family. Claude runs on an Anthropic API key or a Google Cloud project with Claude quota, and Gemini on your gcloud login. Claude subscription sign-ins aren't an option, since Anthropic reserves them for its own apps.
 
 ## What could go wrong, and what stops it
 
@@ -61,7 +61,11 @@ From `make eval` on this commit, with no API key. Dev cases shaped the rules. Th
 
 {{table headline}}
 
-On dev, why answers take {{n dev.latency.why.p50_ms}} ms at the median and everything else under a second. Every table, with how each number is made, is in [docs/EVALS.md](docs/EVALS.md). Live mode is tested against a scripted model and hasn't been scored against a real one yet.
+On dev, why answers take {{n dev.latency.why.p50_ms}} ms at the median and everything else under a second. Every table, with how each number is made, is in [docs/EVALS.md](docs/EVALS.md).
+
+### With live mode on
+
+{{table live}}
 
 ## Who sees what
 

@@ -72,3 +72,9 @@ Routing fell from {{n dev.robustness.routing.original}} to {{n dev.robustness.ro
 ## Latency
 
 {{table latency}}
+
+## Live mode
+
+`make eval-live` runs the same cases with live mode on, three times, since a model's answers vary from run to run. It leaves out the paraphrases, to keep a run's cost down, and the direct note search, which never calls a model. Retrieval, the planted verifier errors, the hostile SQL and the OCR fields never call one either, so their numbers above hold in live mode too. The fallback row counts the requests where a model call failed or ran out of time and the no-key answer went out instead. CI never calls a model, so it checks these numbers against the report and doesn't rerun them. They carry their own date and commit, and a later no-key run leaves them in place, so they can trail the numbers above.
+
+{{table live}}

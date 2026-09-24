@@ -12,8 +12,9 @@ from psycopg.rows import TupleRow
 
 from app import db, pipeline
 from app import events as ev
-from app.config import ROOT, Backend
+from app.config import ROOT, Backend, settings
 from app.identity import Principal, principal_for, role_conninfo
+from app.llm.client import LLM
 from app.memory import Memory
 from app.requestlog import RequestRecord, Source, write_request
 from app.web.stream import answer_stream
@@ -32,17 +33,26 @@ class Logged:
     session_id: str
 
 
-async def ask_logged(principal: Principal, question: str, *, source: Source) -> Logged:
-    """One question asked the way the web route asks it, with no model, so its request_log row and the events a
-    browser would get are the real ones. The pipeline's own events are kept beside them for scoring."""
+async def ask_logged(
+    principal: Principal,
+    question: str,
+    *,
+    source: Source,
+    llm: LLM | None = None,
+    backend: Backend | None = None,
+) -> Logged:
+    """One question asked the way the web route asks it, so its request_log row and the events a browser would get
+    are the real ones. The pipeline's own events are kept beside them for scoring. With no model the backend is
+    none; with one it is the backend named, or the one LLM_BACKEND names, as the web route passes it."""
     memory, session_id = Memory(), uuid.uuid4().hex
     events: list[ev.Event] = []
     records: list[RequestRecord] = []
+    mode: Backend = "none" if llm is None else (backend or settings().backend)
 
     async def ask(
         principal: Principal, question: str, session_id: str, *, backend: Backend = "none"
     ) -> AsyncIterator[object]:
-        async for event in pipeline.ask(principal, question, session_id, backend=backend, memory=memory):
+        async for event in pipeline.ask(principal, question, session_id, backend=backend, memory=memory, llm=llm):
             events.append(event)
             yield event
 
@@ -50,7 +60,7 @@ async def ask_logged(principal: Principal, question: str, *, source: Source) -> 
         records.append(row)
         await write_request(row)
 
-    stream = answer_stream(ask, principal, question, session_id, backend="none", record=record, source=source)
+    stream = answer_stream(ask, principal, question, session_id, backend=mode, record=record, source=source)
     sent = [json.loads(item.raw_data or "null") async for item in stream]
     return Logged(events, sent, records[0] if records else None, memory, session_id)
 

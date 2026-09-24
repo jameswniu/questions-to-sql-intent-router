@@ -4,6 +4,9 @@ Each published file has a template of the same name in docs/templates/: docs/tem
 the repo root and every other docs/templates/X.md renders to docs/X.md. A template's {{table NAME}} and
 {{n PATH}} placeholders pull a table or a single number from the report. python tools/recount.py --write
 renders every template; --check exits 1 when a rendered template differs from what is committed.
+
+The report's live section is written only by make eval-live, which calls a model, so CI never refreshes it: the
+live table and live.* numbers render whatever the committed report holds, or say live mode hasn't been scored.
 """
 
 import argparse
@@ -17,8 +20,9 @@ from typing import Any
 ROOT = Path(__file__).resolve().parent.parent
 # {{table NAME}} alone on its own line becomes the named Markdown table, trailing newline kept.
 TABLE = re.compile(r"^\{\{table ([a-z_]+)\}\}\n", re.MULTILINE)
-# {{n PATH}} anywhere in a line becomes one formatted number. PATH is dotted keys, such as dev.routing.accuracy.
-NUMBER = re.compile(r"\{\{n ([a-z0-9_.@]+)\}\}")
+# {{n PATH}} anywhere in a line becomes one formatted number. PATH is dotted keys, such as dev.routing.accuracy, or
+# live.usage.claude-haiku-4-5.calls, keyed by a model's name.
+NUMBER = re.compile(r"\{\{n ([a-z0-9_.@-]+)\}\}")
 # Anything else shaped like a placeholder: a typo neither TABLE nor NUMBER matches.
 PLACEHOLDER = re.compile(r"\{\{.*?\}\}")
 SPLITS = ("dev", "heldout")
@@ -280,8 +284,98 @@ def headline(report: Report) -> str:
     return markdown(("Check", "Dev", "Held-out"), body)
 
 
+# The live section's metrics, in the headline's groups and keys (evals/report.py), in the order the table shows them.
+# A key the section holds that isn't named here still gets a row, after these, under its own name.
+LIVE: list[tuple[str, Keys]] = [
+    ("Routed to the right path", ("routing", "accuracy")),
+    ("Routing macro F1", ("routing", "macro_f1")),
+    ("Refusal F1", ("refusal", "f1")),
+    ("Answerable questions refused", ("refusal", "false_refusal")),
+    ("Injections missed", ("refusal", "injections_missed")),
+    ("Figure answers equal to gold SQL", ("sql", "execution_accuracy")),
+    ("Document answers citing a relevant passage", ("answers", "grounded")),
+    ("Key facts stated", ("answers", "fact_recall")),
+    ("Why answers naming the planted driver", ("why", "driver_named")),
+    ("Why answers citing the event's document", ("why", "cited")),
+    ("Scan answers passed", ("ocr", "answers")),
+    ("Wrong answers among all answers", ("abstention", "wrong_answer")),
+    ("Leaks", ("permissions", "leaks")),
+    ("Fell back to the no-key answer", ("fallbacks", "requests")),
+]
+
+
+def spread(found: Any) -> str:
+    """A live metric over its runs: the one value when every run agrees, else the lowest to the highest over how many
+    runs had it. A rate reads as hits of n."""
+    values = found.get("values") if isinstance(found, dict) else None
+    runs = [i for i, v in enumerate(values or []) if v is not None]
+    if not values or not runs:
+        return "Not run"
+    hits, ns = found.get("hits"), found.get("n")
+    if isinstance(hits, list) and isinstance(ns, list):
+        pairs = {(hits[i], ns[i]) for i in runs}
+        if len(pairs) == 1:
+            h, n = pairs.pop()
+            return f"{h} of {n}"
+        low, high = min(runs, key=lambda i: (values[i], ns[i])), max(runs, key=lambda i: (values[i], ns[i]))
+        if len({ns[i] for i in runs}) == 1:
+            return f"{hits[low]} to {hits[high]} of {ns[low]} over {len(runs)} runs"
+        return f"{hits[low]} of {ns[low]} to {hits[high]} of {ns[high]} over {len(runs)} runs"
+    if len({values[i] for i in runs}) == 1:
+        return cell(values[runs[0]])
+    return f"{cell(found['min'])} to {cell(found['max'])} over {len(runs)} runs"
+
+
+def live(report: Report) -> str:
+    """The headline numbers with live mode on, over the runs make eval-live scored, from the report's live section,
+    after one line saying when, on what and for how much. Before any live run it says so instead."""
+    header = ("Check", "Dev", "Held-out")
+    metrics = get(report, "live", "metrics")
+    if not isinstance(metrics, dict) or not metrics:
+        return "Live mode hasn't been scored against real models yet. `make eval-live` scores it over three runs.\n"
+    models = get(report, "live", "models") or {}
+    about = (
+        f"Scored {inline(report, 'live.date')} on commit {inline(report, 'live.commit')} over"
+        f" {inline(report, 'live.runs')} runs, with {models.get('main', 'Unknown')} writing,"
+        f" {models.get('fast', 'Unknown')} routing and extracting and {models.get('check', 'Unknown')} checking, for"
+        f" {inline(report, 'live.cost_usd')} in all. Where the runs disagree, a cell shows the range.\n\n"
+    )
+    held = dict.fromkeys(
+        (group, key) for s in SPLITS for group, found in (metrics.get(s) or {}).items() for key in found
+    )
+    named = [(label, path) for label, path in LIVE if path in held]
+    known = {path for _, path in LIVE}
+    named += [
+        (f"{title(group)}, {key.replace('_', ' ')}", (group, key)) for group, key in held if (group, key) not in known
+    ]
+    return about + markdown(
+        header, [(label, *(spread(get(metrics, s, *path)) for s in SPLITS)) for label, path in named]
+    )
+
+
+def dollars(report: Report, keys: list[str]) -> str:
+    """A cost to the cent, or to a hundredth of a cent under one. A cost the report holds as null is one no list price
+    covers, which is not the same as a cost it doesn't hold at all."""
+    parent = get(report, *keys[:-1])
+    if not isinstance(parent, dict) or keys[-1] not in parent:
+        return "Not run"
+    value = parent[keys[-1]]
+    if value is None:
+        return "Unknown"
+    return f"${value:,.2f}" if value == 0 or value >= 0.01 else f"${value:.4f}"
+
+
 def inline(report: Report, path: str) -> str:
-    value = get(report, *path.split("."))
+    keys = path.split(".")
+    value = get(report, *keys)
+    if keys[-1] == "cost_usd":
+        return dollars(report, keys)
+    if keys[-1] == "commit" and isinstance(value, str):
+        # A short hash, still marked when the run was made from uncommitted changes.
+        sha, dirty, _ = value.partition("-dirty")
+        return sha[:7] + dirty
+    if isinstance(value, dict) and "values" in value:
+        return spread(value)
     if isinstance(value, dict) and {"hits", "n"} <= value.keys():
         return f"{value['hits']} of {value['n']}"
     if isinstance(value, list):
@@ -304,6 +398,7 @@ RENDERERS: dict[str, Callable[[Report], str]] = {
     "hostile_sql": hostile_sql,
     "latency": latency,
     "headline": headline,
+    "live": live,
 }
 
 

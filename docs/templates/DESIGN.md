@@ -21,6 +21,7 @@ The README's table is the short version. This is the long one, with each decisio
 | Why questions | A fixed workflow that splits the change by driver, then finds the memo | An agent for every why question | It always takes the same three steps, fetching both periods, splitting by driver and finding the memo. An agent would pick them again on every question | It explains only the drivers the semantic layer names |
 | Streaming | Server-sent events over POST, cancelled when the client goes away | WebSockets, or polling | The answer only flows one way, over plain HTTP. A closed tab stops the query and the sandbox job | Nothing can be sent from the browser mid-answer |
 | Measuring quality | Hand-labelled cases with a held-out split hashed alongside the first rules, scored by execution accuracy, recall@k and Wilson intervals | BLEU or ROUGE, or an LLM judge on one set | String overlap can't tell whether SQL returned the right number. With a few dozen cases, a rate means little without its interval | One author wrote the cases, the rules and the gold SQL |
+| Who checks a written sentence | Gemini on Vertex, set by `LLM_CHECK_BACKEND` | Claude's fast model, the writer's own family | A reader from the writer's family can share its blind spots, and a Gemini reading costs a fraction of a cent | A second provider to configure, and Gemini's response time on the global endpoint varies |
 | Caching | No cache | Caching answers | Answers depend on who asks. A cache keyed wrong would leak between roles | A repeated question pays the full cost |
 
 ## One request, end to end
@@ -122,17 +123,17 @@ The README's table is the short version. This is the long one, with each decisio
 
 ## Live mode
 
-Nothing above calls a language model. Setting `LLM_BACKEND` to `anthropic` or `vertex` adds one where the rules run out, and every model call falls back to the no-key answer on an error, a refusal or a blown budget, and says so.
+Nothing above calls a language model. Setting `LLM_BACKEND` to `anthropic` or `vertex` adds Claude where the rules run out, and every model call falls back to the no-key answer on an error, a refusal or a blown budget, and says so. Claude runs on an Anthropic API key or on Vertex, and `LLM_CHECK_BACKEND=gemini` moves the sentence check to Gemini on gcloud's application-default credentials. Claude subscription sign-ins aren't supported, since Anthropic reserves them for its own apps and asks products to use API keys.
 
 - Questions no keyword rule places go to a small model that picks one of the router's own labels, reading only the question.
 - A figure question the rule extractor can't parse goes to a small model that fills the same typed query. The compiler, the allow-list and the asker's own login take it from there.
-- Document answers are written by the main model from the retrieved passages, sent as search-result blocks with citations on and no tools. Each sentence has to pass the verifier and then a reading by the small model against the passage it cites, and the writer gets one retry with the reasons before anything is cut.
+- Document answers are written by the main model from the retrieved passages, sent as search-result blocks with citations on and no tools. Each sentence has to pass the verifier and then a reading against the passage it cites, by the fast model or, with `LLM_CHECK_BACKEND=gemini`, by Gemini, and the writer gets one retry with the reasons before anything is cut.
 - Why questions get an orchestrator with three helpers, each handed only what its step needs. The SQL helper runs typed queries on the asker's pool. The document helper retrieves as the asker and has a model with no tools pick passages, returning only handles and labels. The analysis helper adapts a sandbox template and has no database handle. The orchestrator holds the tools and sees only handles such as `d1`, `a1` and `c1`.
 - In a why answer the headline and driver sentences are built in code from the rows, and the model writes only the cited cause sentences, so every number stays traceable.
 - The budget is 8 steps and 25 seconds, with at most 4 tool calls a turn and 12 a run.
 - The request builder refuses any request that carries both tools and a passage, so the isolation is enforced in code, and the tests check every request a scripted model receives.
 
-The small model that checks a cause sentence reads the same memo the sentence cites, so a memo written to say its claims are supported could talk it into a made-up cause. That sentence can't carry a number and still cites its passage, so a reader can check it. Live mode is tested against a scripted model and hasn't been scored against a real one.
+The checker reads the same memo a cause sentence cites, so a memo written to say its claims are supported could talk it into a made-up cause. That sentence can't carry a number and still cites its passage, so a reader can check it. `make eval-live` scores live mode against real models, and [EVALS.md](EVALS.md) has the result.
 
 ## From laptop to production
 

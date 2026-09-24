@@ -4,6 +4,7 @@ from typing import Any, NamedTuple
 from app import events as ev
 from app.answer.types import Answer
 from app.identity import principal_for
+from app.llm.client import LLM
 from app.replay import Logged, ask_logged
 from evals.metrics import wilson
 from evals.splits import Case
@@ -58,6 +59,7 @@ class Outcome:
         return [e.payload for e in self.logged.events if isinstance(e, ev.Evidence) and e.kind == kind]
 
 
-async def run_case(case: Case, user: str | None = None) -> Outcome:
+async def run_case(case: Case, user: str | None = None, *, llm: LLM | None = None) -> Outcome:
+    """The case asked as its user, or as the user given, with live mode on when there is a model."""
     asker = user or case["user"]
-    return Outcome(case, asker, await ask_logged(principal_for(asker), case["q"], source="eval"))
+    return Outcome(case, asker, await ask_logged(principal_for(asker), case["q"], source="eval", llm=llm))

@@ -178,3 +178,9 @@ Routing fell from 56 of 56 to 147 of 168 on the rewordings and typos, and SQL fr
 | Refuse | P50 0 ms, p95 0 ms, first event 0 ms (n 31) | P50 0 ms, p95 0 ms, first event 0 ms (n 6) | Question to last event, nearest-rank percentiles. Reported, not checked |
 | Residue | P50 0 ms, p95 1 ms, first event 0 ms (n 19) | P50 0 ms, p95 1 ms, first event 0 ms (n 5) | Question to last event, nearest-rank percentiles. Reported, not checked |
 | Why | P50 928 ms, p95 1069 ms, first event 2 ms (n 20) | P50 659 ms, p95 1347 ms, first event 2 ms (n 6) | Question to last event, nearest-rank percentiles. Reported, not checked |
+
+## Live mode
+
+`make eval-live` runs the same cases with live mode on, three times, since a model's answers vary from run to run. It leaves out the paraphrases, to keep a run's cost down, and the direct note search, which never calls a model. Retrieval, the planted verifier errors, the hostile SQL and the OCR fields never call one either, so their numbers above hold in live mode too. The fallback row counts the requests where a model call failed or ran out of time and the no-key answer went out instead. CI never calls a model, so it checks these numbers against the report and doesn't rerun them. They carry their own date and commit, and a later no-key run leaves them in place, so they can trail the numbers above.
+
+Live mode hasn't been scored against real models yet. `make eval-live` scores it over three runs.
