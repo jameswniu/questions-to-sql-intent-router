@@ -3,6 +3,7 @@ import os
 import re
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
+from typing import Literal
 
 from app.sources.documents import Hit
 
@@ -20,6 +21,8 @@ BULLET = re.compile(r"^(?:[-*]|\d+[.)])\s+")
 MEMO_HEADER = re.compile(r"^(?:to|from|date|re|cc|subject):\s", re.IGNORECASE)
 SENTENCE_BREAK = re.compile(r"(?<=[.!?])\s+(?=[A-Z0-9$(\"])")
 SEPARATOR_CELL = re.compile(r"^:?-{3,}:?$")
+# A sentence that ends in a colon, or points at "the following", opens the list after it.
+ANNOUNCES_LIST = re.compile(r":$|\bthe\s+following\b", re.IGNORECASE)
 ASKS_AMOUNT = re.compile(
     r"\b(?:how\s+(?:much|long|soon|many\s+days)|sublimit|limit|deductible|percent(?:age)?|amount|within)\b",
     re.IGNORECASE,
@@ -45,6 +48,7 @@ OTHER_CHUNK_MARGIN = 0.75
 ROW_MARGIN = 0.5
 
 Rerank = Callable[[str, Sequence[str]], Sequence[float]]
+PieceKind = Literal["text", "item", "row"]
 
 
 @dataclass(frozen=True)
@@ -56,6 +60,7 @@ class Passage:
     score: float
     model: float | None = None
     row: bool = False
+    item: bool = False
 
 
 @dataclass(frozen=True)
@@ -104,7 +109,12 @@ def _closed(text: str) -> str:
 def pieces(body: str) -> list[tuple[str, bool]]:
     """Sentences, list items and table rows, each readable on its own, flagged when a table row.
     A row keeps its column names, so it still reads right away from its header."""
-    out: list[tuple[str, bool]] = []
+    return [(text, kind == "row") for text, kind in _pieces(body)]
+
+
+def _pieces(body: str) -> list[tuple[str, PieceKind]]:
+    """The pieces of pieces(), each with its kind: a sentence of prose, a whole list item, or a table row."""
+    out: list[tuple[str, PieceKind]] = []
     lines: list[str] = []
     item = False
     header: list[str] | None = None
@@ -112,7 +122,7 @@ def pieces(body: str) -> list[tuple[str, bool]]:
     def flush() -> None:
         if lines:
             text = " ".join(lines)
-            out.extend([(_closed(text), False)] if item else [(s, False) for s in SENTENCE_BREAK.split(text) if s])
+            out.extend([(_closed(text), "item")] if item else [(s, "text") for s in SENTENCE_BREAK.split(text) if s])
             lines.clear()
 
     for raw in body.splitlines():
@@ -126,7 +136,7 @@ def pieces(body: str) -> list[tuple[str, bool]]:
                 header = cells
             else:
                 row = "; ".join(f"{name}: {cell}" for name, cell in zip(header, cells, strict=False))
-                out.append((_closed(row), True))
+                out.append((_closed(row), "row"))
             continue
         header = None
         if not line or MEMO_HEADER.match(line):
@@ -173,7 +183,7 @@ def score(
     Words in context count like the query's own but are not shown to the cross-encoder.
     """
     wanted = terms(query) | terms(context)
-    parts = [(hit, position, text, row) for hit in hits for position, (text, row) in enumerate(pieces(hit.body))]
+    parts = [(hit, position, text, kind) for hit in hits for position, (text, kind) in enumerate(_pieces(hit.body))]
     if not wanted or not parts:
         return Scored((), wanted, wanted)
     found = [terms(text) for _, _, text, _ in parts]
@@ -185,13 +195,14 @@ def score(
         logits = list(rerank(query, [f"{hit.header or hit.title}\n{text}" for hit, _, text, _ in parts]))
     amount = ASKS_AMOUNT.search(query) is not None
     passages = []
-    for (hit, position, text, row), words, logit in zip(parts, found, logits, strict=True):
+    for (hit, position, text, kind), words, logit in zip(parts, found, logits, strict=True):
         weight = _saturating([idf[t] for t in wanted if matches(t, words)])
         section = _saturating([idf[t] for t in wanted if matches(t, headings[hit.chunk_id])]) / 2
         extra = _softplus(logit) if logit is not None else 0.0
         extra += AMOUNT_BONUS if amount and STATES_AMOUNT.search(text) else 0.0
         extra += boost(hit) if boost else 0.0
-        passages.append(Passage(text, hit, position, weight, weight + section + extra, logit, row))
+        total = weight + section + extra
+        passages.append(Passage(text, hit, position, weight, total, logit, kind == "row", kind == "item"))
     missing = frozenset(term for term, count in counts.items() if not count)
     return Scored(tuple(passages), wanted, missing)
 
@@ -212,6 +223,23 @@ def _unanswered(scored: Scored) -> bool:
     return unsure and len(scored.missing) >= MISSING_SHARE * len(scored.wanted)
 
 
+def _opens_list(passage: Passage) -> bool:
+    return ANNOUNCES_LIST.search(passage.text) is not None
+
+
+def _listed(scored: Scored, chosen: Sequence[Passage]) -> list[Passage]:
+    """The items of each list a chosen passage opens: the items right after it in its chunk, up to the first
+    passage that isn't one."""
+    at = {(p.hit.chunk_id, p.position): p for p in scored.passages}
+    items = []
+    for opener in (p for p in chosen if _opens_list(p)):
+        position = opener.position + 1
+        while (following := at.get((opener.hit.chunk_id, position))) is not None and following.item:
+            items.append(following)
+            position += 1
+    return items
+
+
 def choose(
     scored: Scored,
     *,
@@ -219,10 +247,14 @@ def choose(
     least: int = 2,
     other_margin: float = OTHER_CHUNK_MARGIN,
     judge: bool = True,
+    lists: bool = False,
 ) -> list[Passage]:
     """Two to four passages around the best one, in reading order, or none when nothing is about the question.
 
     judge=False skips that last check, for a caller that has already decided the hits are the right ones.
+    lists=True lets a chosen passage that opens a list ("when any of the following applies") bring the whole
+    list: the items are what it says, though they may share no word with the question, and one item picked out
+    by its words would read as the only one.
     """
     relevant = [p for p in scored.passages if p.weight > 0]
     if not relevant or (judge and _unanswered(scored)):
@@ -238,6 +270,8 @@ def choose(
             margin = ROW_MARGIN if passage.row or best.row else SAME_CHUNK_MARGIN
         if passage.score >= best.score - margin:
             chosen.append(passage)
+    if lists:
+        chosen += [item for item in dict.fromkeys(_listed(scored, chosen)) if item not in chosen]
     if _sentences(chosen) < least and not best.row:
         # A lone short passage reads as a fragment; its neighbour in the same chunk supplies the context.
         neighbours = [p for p in scored.passages if p.hit.chunk_id == best.hit.chunk_id and p not in chosen]
@@ -247,6 +281,13 @@ def choose(
     for i, p in enumerate(chosen):
         first_seen.setdefault(p.hit.chunk_id, i)
     return sorted(chosen, key=lambda p: (first_seen[p.hit.chunk_id], p.position))
+
+
+def as_lines(chosen: Sequence[Passage]) -> list[str]:
+    """The chosen passages as an answer says them: the items of a list read as bullets under the sentence that
+    opens it, and everything else as written."""
+    opened = {p.hit.chunk_id for p in chosen if _opens_list(p)}
+    return [f"- {p.text}" if p.item and p.hit.chunk_id in opened else p.text for p in chosen]
 
 
 def _sentences(passages: Sequence[Passage]) -> int:

@@ -1,6 +1,6 @@
 from collections.abc import Sequence
 
-from app.answer.passages import Passage, choose, matches, pieces, score, split, terms
+from app.answer.passages import Passage, as_lines, choose, matches, pieces, score, split, terms
 from app.sources.documents import Hit
 
 
@@ -30,6 +30,16 @@ TABLE = hit(
     "ho#5-3:1",
     "| State | Peril | Deductible |\n| --- | --- | --- |\n| Texas | Hail | 2% |\n| Texas | Fire | $1,000 |",
     header="Form | 5.3 Deductible schedule",
+)
+ESCALATION = hit(
+    "cg#5:1",
+    "Escalate to your supervisor when any of the following applies.\n\n"
+    "- The reserve would exceed your authority.\n"
+    "- You suspect fraud.\n"
+    "- An attorney becomes involved.\n\n"
+    "Supervisors hold authority for payments.",
+    header="Guidelines | 5. Escalation to a supervisor",
+    kind="guideline",
 )
 
 
@@ -109,3 +119,36 @@ def test_chosen_passages_read_in_document_order() -> None:
     chosen = choose(score([FLOOD], "flood water excluded plumbing"), most=3)
     positions = [p.position for p in chosen]
     assert positions == sorted(positions)
+
+
+def test_list_items_are_marked_apart_from_prose() -> None:
+    marked = [(p.text, p.item) for p in score([ESCALATION], "When should I escalate to a supervisor?").passages]
+    assert [text for text, item in marked if item] == [
+        "The reserve would exceed your authority.",
+        "You suspect fraud.",
+        "An attorney becomes involved.",
+    ]
+
+
+def test_a_passage_that_opens_a_list_brings_the_whole_list_as_bullets() -> None:
+    # None of the items shares a word with the question, so only the sentence opening the list can bring them.
+    chosen = choose(score([ESCALATION], "When should I escalate to a supervisor?"), lists=True)
+    assert as_lines(chosen) == [
+        "Escalate to your supervisor when any of the following applies.",
+        "- The reserve would exceed your authority.",
+        "- You suspect fraud.",
+        "- An attorney becomes involved.",
+        "Supervisors hold authority for payments.",
+    ]
+
+
+def test_without_lists_an_opener_comes_alone() -> None:
+    chosen = choose(score([ESCALATION], "When should I escalate to a supervisor?"))
+    assert not any(p.item for p in chosen)
+    assert as_lines(chosen) == texts(chosen)
+
+
+def test_an_item_chosen_for_its_own_words_reads_as_a_sentence() -> None:
+    chosen = choose(score([ESCALATION], "What if I suspect fraud?"), lists=True)
+    assert "You suspect fraud." in texts(chosen)
+    assert not any(line.startswith("- ") for line in as_lines(chosen))

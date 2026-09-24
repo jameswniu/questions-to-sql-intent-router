@@ -109,7 +109,8 @@ async def qualitative(principal: Principal, question: str, previous: LastTurn | 
     turn = LastTurn("qualitative", question, claim_id=result.claim_id)
     events: list[ev.Event] = [ev.Evidence("chunks", list(result.hits))]
     if result.kind != "answer":
-        return Handled("not_found", events, text=result.text, turn=turn, claim_ids=claim_ids, doc_ids=doc_ids)
+        outcome: ev.Outcome = "not_allowed" if result.kind == "not_allowed" else "not_found"
+        return Handled(outcome, events, text=result.text, turn=turn, claim_ids=claim_ids, doc_ids=doc_ids)
     return Handled("answer", events, result.draft, result.evidence, None, turn, claim_ids, doc_ids)
 
 
