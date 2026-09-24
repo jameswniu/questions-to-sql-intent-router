@@ -44,6 +44,16 @@ class Error:
 
 
 @dataclass(frozen=True)
+class Live:
+    """How live mode went for a request that used it: why it fell back to the no-key answer, if it did, and whether
+    the model wrote its draft once more with the verifier's reasons. The request log reads it; the browser never
+    gets it."""
+
+    fallback: str | None
+    retried: bool = False
+
+
+@dataclass(frozen=True)
 class Done:
     request_id: str
     total_ms: float
@@ -54,4 +64,4 @@ class Done:
     doc_ids: tuple[str, ...] = ()
 
 
-Event = Stage | Evidence | Answer | Refused | Clarify | OutOfData | Error | Done
+Event = Stage | Evidence | Answer | Refused | Clarify | OutOfData | Error | Live | Done

@@ -1,0 +1,18 @@
+# Live mode: docker compose -f compose.yaml -f compose.live.yaml up -d, with LLM_BACKEND and its settings in .env or the shell.
+services:
+  app:
+    environment:
+      LLM_BACKEND: ${LLM_BACKEND:-off}
+      LIVE_FAST_MODEL: ${LIVE_FAST_MODEL:-claude-haiku-4-5}
+      LIVE_MAIN_MODEL: ${LIVE_MAIN_MODEL:-claude-sonnet-5}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      VERTEX_PROJECT_ID: ${VERTEX_PROJECT_ID:-}
+      VERTEX_REGION: ${VERTEX_REGION:-global}
+      GOOGLE_APPLICATION_CREDENTIALS: /run/gcloud/application_default_credentials.json
+    volumes:
+      - type: bind
+        source: ${HOME}/.config/gcloud/application_default_credentials.json
+        target: /run/gcloud/application_default_credentials.json
+        read_only: true
+        bind:
+          create_host_path: false

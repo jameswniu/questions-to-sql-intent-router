@@ -20,14 +20,20 @@ ROUTE_ORDER = {
     "qualitative": "Qualitative",
     "why": "Why",
     "refuse": "Refused at the gate",
+    # A question after a figure that doesn't say which one or for when, which the router sends to be asked back.
+    "clarify": "Routed to clarify",
+    "out_of_data": "Out of data",
+    # Stored as residue: no rule matched, and the reply lists what can be asked.
+    "residue": "No match",
 }
 # The pipeline's outcomes, plus the two the web layer adds: error when the pipeline raised, cancelled when the
-# client left first.
+# client left first. A reply that asks a question back can come from any route, so the clarify outcome counts
+# more requests than the clarify route does.
 OUTCOMES = {
     "answer": "Answered",
     "not_found": "Not found",
     "not_allowed": "Not allowed",
-    "clarify": "Asked to clarify",
+    "clarify": "Asked a question back",
     "out_of_data": "Outside the data",
     "timeout": "Timed out",
     "unavailable": "Data unavailable",

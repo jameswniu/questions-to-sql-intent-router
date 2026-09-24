@@ -265,7 +265,13 @@ CREATE TABLE ops.request_log (
     verifier jsonb,
     mode text,
     source text,
-    question_redacted text
+    question_redacted text,
+    -- Live mode only: why it fell back to the no-key answer, what it wrote to the prompt cache, the models that
+    -- answered as each reply named itself, and each prompt template called with the hash of its fixed parts.
+    fallback text,
+    cache_write_tokens int,
+    models text[],
+    prompt_hashes jsonb
 );
 
 CREATE TABLE ops.audit_log (

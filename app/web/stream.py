@@ -20,6 +20,8 @@ from app.requestlog import RequestRecord, RequestTrace, Source, kind_of
 log = logging.getLogger(__name__)
 
 PIPELINE_TIMEOUT_S = 120.0
+# Events for the request log and the traces alone. The browser takes a kind it doesn't know for a failure.
+UNSENT = frozenset({"live"})
 CANCEL_GRACE_S = 5.0
 RECORD_TIMEOUT_S = 5.0
 TIMEOUT_MESSAGE = "This took longer than two minutes, so it was stopped. Try asking something narrower."
@@ -121,7 +123,8 @@ async def answer_stream(
                 request.observe(kind, item)
             except Exception:
                 log.exception("could not account for a %s event", kind)
-            yield encode(kind, _for_client(kind, item))
+            if kind not in UNSENT:
+                yield encode(kind, _for_client(kind, item))
     except (asyncio.CancelledError, GeneratorExit):
         request.cancel()
         raise

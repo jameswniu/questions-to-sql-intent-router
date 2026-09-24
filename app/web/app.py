@@ -14,8 +14,9 @@ from pydantic import BaseModel, Field
 from starlette.types import ASGIApp, Receive, Scope, Send
 
 from app import db, requestlog, telemetry
-from app.config import settings
+from app.config import Backend, settings
 from app.identity import Principal, principal_for, principals
+from app.llm import client as live
 from app.pipeline import ask as run_pipeline
 from app.redact import redact
 from app.sources.scans import scan_image
@@ -91,6 +92,8 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     app.state.identity_mode = auth.identity_mode()
     app.state.proxy_secret = auth.proxy_secret()
     telemetry.configure()
+    # A live-mode setting that can't work stops the app here, rather than on the first question.
+    live.default()
     yield
     await db.close_all()
 
@@ -166,7 +169,16 @@ def within_rate(request: Request, principal: Annotated[Principal, Depends(curren
 
 
 def pipeline() -> AskFn:
-    return run_pipeline
+    llm = live.default()
+    if llm is None:
+        return run_pipeline
+
+    def ask_live(
+        principal: Principal, question: str, session_id: str, *, backend: Backend = "none"
+    ) -> AsyncIterator[object]:
+        return run_pipeline(principal, question, session_id, backend=backend, llm=llm)
+
+    return ask_live
 
 
 def recorder() -> Recorder:

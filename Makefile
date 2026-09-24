@@ -1,5 +1,5 @@
 .DEFAULT_GOAL := help
-.PHONY: help secrets up down reset logs test test-sandbox test-unit eval eval-check claims lint psql
+.PHONY: help secrets up up-live live-check down reset logs test test-sandbox test-unit eval eval-check claims lint psql
 
 ROLES := $(shell sed -n 's/^  \(u_[a-z_]*\):.*/\1/p' data/users.yaml)
 SECRET_KEYS := POSTGRES_PASSWORD APP_WRITER_PASSWORD GOLD_READER_PASSWORD SESSION_SECRET \
@@ -18,6 +18,15 @@ up: secrets ## Build and start everything, then wait until it is healthy
 	docker compose --profile sandbox-image build sandbox
 	docker compose up -d --build --wait
 	@echo "Open http://$$(docker compose port app 8000 | sed s/127.0.0.1/localhost/)"
+
+# Live mode reads LLM_BACKEND and its settings from .env or the shell, and mounts the gcloud credentials for vertex.
+up-live: secrets ## Start everything as up does, with live mode's model settings layered on
+	docker compose --profile sandbox-image build sandbox
+	docker compose -f compose.yaml -f compose.live.yaml up -d --build --wait
+	@echo "Open http://$$(docker compose port app 8000 | sed s/127.0.0.1/localhost/)"
+
+live-check: ## Ask each live model for one token, with the settings in .env or the shell, and say which answered
+	uv run $(if $(wildcard .env),--env-file .env) python tools/live_check.py
 
 down: ## Stop the stack, keeping the database volume
 	docker compose down

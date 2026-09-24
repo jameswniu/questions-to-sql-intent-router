@@ -85,13 +85,23 @@ pre.sql, pre.code {
   border-radius: 6px; overflow-x: auto; white-space: pre; line-height: 1.45;
 }
 pre.sql { white-space: pre-wrap; overflow-wrap: anywhere; }
+ol.params { list-style: none; counter-reset: param; display: flex; flex-wrap: wrap; gap: 4px 14px; margin: 3px 0 0; padding: 0; }
+ol.params li { counter-increment: param; }
+ol.params li::before { content: counter(param) ". "; color: var(--muted); font-size: 0.8rem; }
+ol.params code { background: var(--panel); border: 1px solid var(--hairline); border-radius: 4px; padding: 1px 5px; }
 .table-wrap { overflow-x: auto; }
-table.rows, table.metrics { border-collapse: collapse; font-size: 0.83rem; margin-top: 0.25rem; }
-table.rows th, table.rows td, table.metrics th, table.metrics td {
+table.rows, table.split, table.metrics { border-collapse: collapse; font-size: 0.83rem; margin-top: 0.25rem; }
+table.rows th, table.rows td, table.split th, table.split td, table.metrics th, table.metrics td {
   border: 1px solid var(--hairline); padding: 4px 8px; text-align: left; vertical-align: top;
 }
-table.rows th, table.metrics thead th { background: var(--panel); font-weight: 600; }
-td.num { text-align: right; font-variant-numeric: tabular-nums; }
+table.rows th, table.split thead th, table.metrics thead th { background: var(--panel); font-weight: 600; }
+table td.num { text-align: right; font-variant-numeric: tabular-nums; }
+table.split { margin-top: 0.6rem; }
+table.split caption { caption-side: top; text-align: left; font-size: 0.8rem; font-weight: 600; color: var(--muted); padding-bottom: 3px; }
+table.split thead th + th { text-align: right; }
+table.split tbody th { font-weight: 400; }
+table.split tfoot th, table.split tfoot td { font-weight: 600; border-top-width: 2px; }
+button.more { padding: 0; border: 0; background: none; color: var(--accent); font-size: inherit; text-decoration: underline; }
 .chunks { list-style: none; padding: 0; margin: 0.25rem 0 0; display: grid; gap: 8px; }
 .chunks li { border: 1px solid var(--hairline); border-radius: 6px; padding: 8px 10px; font-size: 0.85rem; }
 .chunks .where { font-weight: 600; }

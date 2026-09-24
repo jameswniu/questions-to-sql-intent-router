@@ -59,6 +59,23 @@ async def test_populated_tables_draw_every_panel(
     assert "default-src 'self'" in response.headers["content-security-policy"]
 
 
+async def test_route_and_outcome_labels_say_what_each_counts(
+    supervisor: httpx.AsyncClient, use_dashboard: Callable[[DashboardData], None]
+) -> None:
+    # Stored as clarify and residue. A reply can ask a question back from any route, so the clarify outcome
+    # outnumbers the clarify route, and the two need names that don't read as one count.
+    routes = [
+        RouteStats("clarify", 46, 30.0, 60.0, 20.0, 40.0, 0, None),
+        RouteStats("residue", 582, 30.0, 60.0, 20.0, 40.0, 0, None),
+    ]
+    use_dashboard(DashboardData(routes=routes, outcomes=[OutcomeCount("clarify", None, 721)]))
+    html = (await supervisor.get("/dashboard")).text
+    for label in ("Routed to clarify", "No match", "Asked a question back"):
+        assert f">{label}</text>" in html
+    for old in ("Residue", ">Clarify</text>", "Asked to clarify"):
+        assert old not in html
+
+
 async def test_the_source_filter_marks_the_current_view(
     supervisor: httpx.AsyncClient, use_dashboard: Callable[[DashboardData], None]
 ) -> None:

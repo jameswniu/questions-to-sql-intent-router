@@ -143,7 +143,8 @@ def _boost(question: str) -> Callable[[Hit], float]:
     return lambda hit: KIND_BOOST if hit.kind in named else 0.0
 
 
-def _caveats(reading: ReadingDate, cited: Sequence[Hit]) -> tuple[str, ...]:
+def caveats(reading: ReadingDate, cited: Sequence[Hit]) -> tuple[str, ...]:
+    """Which form edition the cited wording was read against, when the question or a claim set the date."""
     editions = sorted({hit.edition for hit in cited if hit.edition})
     if not editions or reading.basis in ("today", "edition"):
         return ()
@@ -179,6 +180,6 @@ async def answer_qual(principal: Principal, question: str, *, on_date: date | No
         return QualResult("not_found", NOT_FOUND, Draft((), ()), evidence, ordered, reading, claim_id)
     lines = as_lines(chosen)
     claims = tuple(Claim(line, (), (p.hit.chunk_id,)) for p, line in zip(chosen, lines, strict=True))
-    draft = Draft(claims, _caveats(reading, [p.hit for p in chosen]))
+    draft = Draft(claims, caveats(reading, [p.hit for p in chosen]))
     text = ("\n" if any(line.startswith("- ") for line in lines) else " ").join(lines)
     return QualResult("answer", text, draft, evidence, ordered, reading, claim_id)

@@ -1,22 +1,27 @@
 import contextlib
 import contextvars
+import logging
 import re
 import time
 import uuid
 from collections.abc import Iterable, Mapping, Sized
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, field
 from decimal import Decimal
+from functools import cache
 from typing import Any, Literal
 
 from opentelemetry import context as otel_context
 from opentelemetry import trace
 from opentelemetry.trace import SpanKind, Status, StatusCode
 from opentelemetry.util.types import AttributeValue
+from psycopg import errors
 from psycopg.types.json import Jsonb
 
 from app import db, telemetry
 from app.identity import Principal
 from app.redact import redact, sql_for_span
+
+log = logging.getLogger(__name__)
 
 Source = Literal["ui", "eval", "replay"]
 QUESTION_CAP = 2000
@@ -28,6 +33,7 @@ EVENT_KINDS = {
     "Refused": "refused",
     "Clarify": "clarify",
     "OutOfData": "out_of_data",
+    "Live": "live",
     "Done": "done",
 }
 
@@ -61,6 +67,12 @@ class RequestRecord:
     question_redacted: str
     claim_ids: list[int]
     doc_ids: list[str]
+    # Live mode only: why it fell back, if it did, what it wrote to the cache, the models that answered as each
+    # reply named itself, and each prompt template called with the hash of its fixed parts.
+    fallback: str | None = None
+    cache_write_tokens: int = 0
+    models: list[str] = field(default_factory=list)
+    prompt_hashes: dict[str, str] = field(default_factory=dict)
 
 
 class RequestTrace:
@@ -76,6 +88,7 @@ class RequestTrace:
         self.stage_ms: dict[str, int] = {}
         self.verifier: dict[str, int] | None = None
         self.retried = False
+        self.fallback: str | None = None
         self.claim_ids: list[int] = []
         self.doc_ids: list[str] = []
         self.first_event_ms: int | None = None
@@ -115,6 +128,9 @@ class RequestTrace:
                 self.outcome = "answer"
                 kept, cut = _count(getattr(event, "claims_kept", None)), _count(getattr(event, "claims_cut", None))
                 self.verifier = {"kept": kept, "cut": cut}
+                self.retried = self.retried or getattr(event, "retried", False) is True
+            case "live":
+                self.fallback = _text(getattr(event, "fallback", None)) or self.fallback
                 self.retried = self.retried or getattr(event, "retried", False) is True
             case "refused":
                 self.outcome, self.refusal_reason = "refused", _text(getattr(event, "reason", None))
@@ -157,6 +173,10 @@ class RequestTrace:
             question_redacted=redact(self.question)[:QUESTION_CAP],
             claim_ids=self.claim_ids,
             doc_ids=self.doc_ids,
+            fallback=self.fallback,
+            cache_write_tokens=usage.cache_write,
+            models=list(usage.models),
+            prompt_hashes=dict(usage.templates),
         )
         attributes: dict[str, AttributeValue | None] = {
             "claims_qa.request_id": str(record.request_id),
@@ -165,6 +185,7 @@ class RequestTrace:
             "claims_qa.refusal_reason": record.refusal_reason,
             "claims_qa.first_event_ms": record.first_event_ms,
             "claims_qa.total_ms": record.total_ms,
+            **telemetry.request_attributes(usage, record.fallback),
         }
         self._span.set_attributes({key: value for key, value in attributes.items() if value is not None})
         self._span.end()
@@ -209,6 +230,21 @@ WITH logged AS (
 INSERT INTO ops.audit_log (request_id, user_id, role_name, route, claim_ids, doc_ids)
 VALUES (%(request_id)s, %(user_id)s, %(role_name)s, %(route)s, %(claim_ids)s::int[], %(doc_ids)s::text[])
 """
+# The same, with live mode's columns. Only a request that ran with a model backend writes it, so a database built
+# before those columns existed still takes every no-key row, and a live one without its live columns.
+_INSERT_LIVE = """
+WITH logged AS (
+    INSERT INTO ops.request_log (request_id, user_id, role_name, route, outcome, refusal_reason, stage_ms, total_ms,
+        first_event_ms, tokens_in, tokens_out, cache_read_tokens, cost_usd, verifier, mode, source, question_redacted,
+        fallback, cache_write_tokens, models, prompt_hashes)
+    VALUES (%(request_id)s, %(user_id)s, %(role_name)s, %(route)s, %(outcome)s, %(refusal_reason)s, %(stage_ms)s,
+        %(total_ms)s, %(first_event_ms)s, %(tokens_in)s, %(tokens_out)s, %(cache_read_tokens)s, %(cost_usd)s,
+        %(verifier)s, %(mode)s, %(source)s, %(question_redacted)s, %(fallback)s, %(cache_write_tokens)s,
+        %(models)s::text[], %(prompt_hashes)s)
+)
+INSERT INTO ops.audit_log (request_id, user_id, role_name, route, claim_ids, doc_ids)
+VALUES (%(request_id)s, %(user_id)s, %(role_name)s, %(route)s, %(claim_ids)s::int[], %(doc_ids)s::text[])
+"""
 
 
 async def write_request(record: RequestRecord) -> None:
@@ -216,7 +252,21 @@ async def write_request(record: RequestRecord) -> None:
     params = asdict(record)
     params["stage_ms"] = Jsonb(record.stage_ms)
     params["verifier"] = None if record.verifier is None else Jsonb(record.verifier)
-    await db.write(_INSERT, params)
+    if record.mode == "none":
+        await db.write(_INSERT, params)
+        return
+    try:
+        await db.write(_INSERT_LIVE, {**params, "prompt_hashes": Jsonb(record.prompt_hashes)})
+    except errors.UndefinedColumn:
+        # The schema runs once, at the first bootstrap, so a database from before live mode needs make reset to get
+        # its columns. Until then the row and its audit row are still written, without them.
+        _warn_without_live_columns()
+        await db.write(_INSERT, params)
+
+
+@cache
+def _warn_without_live_columns() -> None:
+    log.warning("ops.request_log has no live-mode columns, so live requests are logged without them until make reset")
 
 
 def _sql_text(payload: object) -> str | None:

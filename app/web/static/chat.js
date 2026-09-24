@@ -1,4 +1,4 @@
-import { el, evidencePanel, fmtMs, sourceLabel } from "./evidence.js";
+import { el, evidencePanel, fmtMs, sourceKey, sourceLabel, uniqueSources } from "./evidence.js";
 import { feedback } from "./feedback.js";
 
 const thread = document.getElementById("thread");
@@ -188,8 +188,8 @@ function appendMarked(node, line, turnId) {
 }
 
 function renderAnswer(state, data) {
-  const citations = Array.isArray(data.citations) ? data.citations : [];
-  const numbers = new Map(citations.map((c, i) => [c?.chunk_id ?? c?.doc_id ?? String(i), i + 1]));
+  const citations = uniqueSources(Array.isArray(data.citations) ? data.citations : []);
+  const numbers = new Map(citations.map((c, i) => [sourceKey(c, i), i + 1]));
   const marked = withMarkers(String(data.text ?? ""), Array.isArray(data.claims_kept) ? data.claims_kept : [], numbers);
   const body = el("div", "answer-text");
   let bullets = null;
@@ -232,7 +232,8 @@ function renderClarify(state, data) {
   const list = el("ul", "options");
   for (const option of options) {
     const text = typeof option === "string" ? option : option?.label ?? option?.value ?? "";
-    const button = el("button", null, text);
+    // A label starts with a capital, so "year to date" reads like "Q2 2026" beside it; the reply it fills in stays as sent.
+    const button = el("button", null, text.charAt(0).toUpperCase() + text.slice(1));
     button.type = "button";
     button.dataset.fill = typeof option === "string" ? option : option?.value ?? text;
     const item = el("li");
@@ -243,10 +244,11 @@ function renderClarify(state, data) {
 }
 
 function renderOutside(state, data) {
-  const box = notice(state, "outside", "Outside the data", data.message);
-  const covered = data.covered;
-  if (typeof covered === "string") box.append(el("p", "muted", covered));
-  else if (covered?.start && covered?.end) box.append(el("p", "muted", `The data covers ${covered.start} to ${covered.end}.`));
+  const message = String(data.message ?? "");
+  const box = notice(state, "outside", "Outside the data", message);
+  // The message names the range the data covers, so the range is added only to one that doesn't.
+  const covered = typeof data.covered === "string" ? data.covered : data.covered?.start && data.covered?.end ? `${data.covered.start} to ${data.covered.end}` : "";
+  if (covered && !message.includes(covered)) box.append(el("p", "muted", `My data covers ${covered}.`));
 }
 
 function finish(state) {

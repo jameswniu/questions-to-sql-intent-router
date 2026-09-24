@@ -43,6 +43,14 @@ class WhyResult:
     clarify: Clarify | None = None
     covered: Period | None = None
     sql: tuple[str, ...] = ()
+    # The values bound to each statement's placeholders, in the order of sql. A result that doesn't keep them leaves
+    # this empty, and its statements show without their values.
+    params: tuple[tuple[Any, ...], ...] = ()
+
+    @property
+    def statements(self) -> list[dv.Ran]:
+        """Each statement in sql with the values bound to it, or none where they weren't kept."""
+        return [(sql, self.params[i] if i < len(self.params) else ()) for i, sql in enumerate(self.sql)]
 
 
 def _result(kind: Kind, text: str, **extra: Any) -> WhyResult:
@@ -166,18 +174,18 @@ async def _split(
     now: dv.Side,
     then: dv.Side,
     offset: int,
-) -> tuple[list[tuple[dv.Group, ...]], list[dict[str, Any]], list[dict[str, Any]], list[str]]:
+) -> tuple[list[tuple[dv.Group, ...]], list[dict[str, Any]], list[dict[str, Any]], list[dv.Ran]]:
     ratio = layer.measures[mq.measure].kind == "ratio"
     agg = principal.kind == "analyst"
     per_dimension: list[list[dv.Group]] = []
     rows: list[dict[str, Any]] = []
     results: list[dict[str, Any]] = []
-    sql: list[str] = []
+    ran: list[dv.Ran] = []
     dims = dv.free_dimensions(mq, layer, analyst=agg)
     if not dims:
         whole = await dv.whole_table(principal, mq, layer, now, then)
         result = await decompose(principal.db_role, whole.table, dv.decompose_params(None))
-        return [], whole.records, [result], whole.sql
+        return [], whole.records, [result], whole.ran
     # One dimension at a time: the daemon runs two jobs per login at most, and each is quick.
     for dim in dims:
         split = await dv.group_table(principal, mq, dim, layer)
@@ -186,9 +194,9 @@ async def _split(
             dv.contributions(result, split, offset + len(rows), ratio=ratio, agg=agg, current=now, prior=then)
         )
         rows += split.records
-        sql += split.sql
+        ran += split.ran
         results.append(result)
-    return dv.pick_drivers(per_dimension), rows, results, sql
+    return dv.pick_drivers(per_dimension), rows, results, ran
 
 
 async def answer_why(
@@ -200,6 +208,19 @@ async def answer_why(
     decompose: dv.Decompose = dv.in_sandbox,
 ) -> WhyResult:
     layer = layer or default_layer()
+    planned = plan_why(principal, question, previous, layer)
+    if isinstance(planned, WhyResult):
+        return planned
+    whole, note = planned
+    return await _explain(principal, question, whole, layer, decompose, note)
+
+
+def plan_why(
+    principal: Principal, question: str, previous: MetricQuery | None, layer: Layer
+) -> WhyResult | tuple[MetricQuery, str | None]:
+    """The change a why question asks about, scoped to the user, with the note scoping adds, or the answer that needs
+    no change explained: a clarifying question, an out-of-data answer, a snapshot measure or a region the user can't
+    see. Live mode plans the same way, so it explains exactly the questions this workflow would."""
     extracted = extract(question, layer, previous)
     if isinstance(extracted, Clarify):
         return _result("clarify", extracted.question, clarify=extracted, query=extracted.partial)
@@ -221,8 +242,7 @@ async def answer_why(
     scoped, note = scope(resolved, principal, layer)
     if scoped is None:
         return _result("not_allowed", note or "", query=resolved)
-    whole = replace(scoped, group_by=(), grain=None, limit=None)
-    return await _explain(principal, question, whole, layer, decompose, note)
+    return replace(scoped, group_by=(), grain=None, limit=None), note
 
 
 async def _explain(
@@ -237,20 +257,20 @@ async def _explain(
     headline = await dv.fetch(principal, replace(mq, compare_to="prior_period"), layer)
     figures = dv.sides(headline, layer.measures[mq.measure].kind == "ratio")
     now, then = figures.get("current"), figures.get("prior")
-    rows, sql = headline.records(), [headline.sql]
+    rows, ran = headline.records(), [headline.ran]
     caveats = [note] if note else []
     if now is None or then is None or now.value is None or then.value is None:
         what = subject(mq, layer, capital=False)
         text = f"There isn't enough data on {what} to compare {mq.period.label} with the period before."
-        return _result("answer", text, query=mq, sql=tuple(sql))
+        return _result("answer", text, query=mq, sql=(headline.sql,), params=(headline.params,))
     head, change = _headline(mq, layer, now, then, "grp" in headline.columns)
     claims = [head]
     chosen: list[tuple[dv.Group, ...]] = []
     results: list[dict[str, Any]] = []
     if now.value != then.value:
         try:
-            chosen, split_rows, results, split_sql = await _split(principal, mq, layer, decompose, now, then, len(rows))
-            rows, sql = rows + split_rows, sql + split_sql
+            chosen, split_rows, results, split_ran = await _split(principal, mq, layer, decompose, now, then, len(rows))
+            rows, ran = rows + split_rows, ran + split_ran
         except (dv.SandboxFailed, SandboxUnavailable):
             caveats.append(NO_SPLIT)
         if chosen:
@@ -267,4 +287,5 @@ async def _explain(
     draft = Draft(tuple(claims), tuple(caveats))
     evidence = Evidence(tuple(rows), hits, tuple(results), ())
     text = " ".join([*(c.text for c in claims), *caveats])
-    return WhyResult("answer", text, draft, evidence, query=mq, sql=tuple(sql))
+    sql, params = tuple(statement for statement, _ in ran), tuple(bound for _, bound in ran)
+    return WhyResult("answer", text, draft, evidence, query=mq, sql=sql, params=params)

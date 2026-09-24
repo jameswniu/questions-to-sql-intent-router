@@ -1,4 +1,5 @@
 import ast
+import asyncio
 import re
 from collections.abc import Awaitable, Callable, Iterator, Mapping, Sequence
 from dataclasses import dataclass
@@ -822,11 +823,12 @@ async def verify_and_retry(
     compose_fn: Composer, evidence: Evidence, principal: Principal, *, second_check: SecondCheck | None = None
 ) -> Answer:
     """Composes, and when a claim fails, composes once more with every failing reason before keeping what holds.
-    A deterministic composer ignores the feedback and returns the same draft, so its retry changes nothing."""
+    A deterministic composer ignores the feedback and returns the same draft, so its retry changes nothing. Each
+    check runs on a worker thread, as the pipeline's own does, so a long one never stalls other requests."""
     draft = await _drafted(compose_fn(evidence, ()))
-    verification = verify(draft, evidence, principal, second_check=second_check)
+    verification = await asyncio.to_thread(verify, draft, evidence, principal, second_check=second_check)
     if not verification.passed:
         feedback = tuple(f'"{check.claim.text}": {reason}' for check in verification.checks for reason in check.reasons)
         draft = await _drafted(compose_fn(evidence, feedback))
-        verification = verify(draft, evidence, principal, second_check=second_check)
+        verification = await asyncio.to_thread(verify, draft, evidence, principal, second_check=second_check)
     return finalize(draft, verification)

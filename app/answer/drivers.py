@@ -25,6 +25,8 @@ SECOND_DRIVER = Decimal("0.5")
 # Takes the login role, the table and the template's params. The sandbox daemon runs it in production;
 # tests pass the template function itself.
 Decompose = Callable[[str, Table, dict[str, Any]], Awaitable[dict[str, Any]]]
+# A statement as it ran: its SQL, and the values bound to its %s placeholders in order.
+Ran = tuple[str, tuple[Any, ...]]
 
 
 class SandboxFailed(RuntimeError):
@@ -49,9 +51,18 @@ class Fetched:
     columns: tuple[str, ...]
     rows: tuple[tuple[Any, ...], ...]
     sql: str
+    params: tuple[Any, ...] = ()
+    # The measure the rows hold. A sum's split fetches the count it is split over as well, and both come back in a
+    # column named value, so each record names its measure.
+    measure: str | None = None
 
     def records(self) -> list[dict[str, Any]]:
-        return [dict(zip(self.columns, row, strict=True)) for row in self.rows]
+        named = {"measure": self.measure} if self.measure else {}
+        return [named | dict(zip(self.columns, row, strict=True)) for row in self.rows]
+
+    @property
+    def ran(self) -> Ran:
+        return self.sql, self.params
 
 
 @dataclass(frozen=True)
@@ -80,12 +91,13 @@ class Group:
 
 @dataclass(frozen=True)
 class Split:
-    """One dimension's table for the sandbox, the result rows it was built from, and where each group's rows sit."""
+    """One dimension's table for the sandbox, the result rows it was built from, the statements that fetched them,
+    and where each group's rows sit."""
 
     dim: str
     table: Table
     records: list[dict[str, Any]]
-    sql: list[str]
+    ran: list[Ran]
     at: dict[tuple[str, str], int]
 
 
@@ -93,7 +105,7 @@ async def fetch(principal: Principal, mq: MetricQuery, layer: Layer) -> Fetched:
     compiled = compile(mq, layer, principal)
     sql = verify_sql(compiled.sql, relations=compiled.relations)
     found = await db.run(principal, sql, compiled.params)
-    return Fetched(tuple(found.columns), tuple(found.rows), sql)
+    return Fetched(tuple(found.columns), tuple(found.rows), sql, compiled.params, mq.measure)
 
 
 def sides(fetched: Fetched, ratio: bool) -> dict[str, Side]:
@@ -169,7 +181,7 @@ async def group_table(principal: Principal, mq: MetricQuery, dim: str, layer: La
         # not its place in the sandbox table.
         at[(period, str(key))] = index
     records = [record for f in fetched for record in f.records()]
-    return Split(dim, Table(["period", dim, "value", "n"], rows), records, [f.sql for f in fetched], at)
+    return Split(dim, Table(["period", dim, "value", "n"], rows), records, [f.ran for f in fetched], at)
 
 
 async def whole_table(principal: Principal, mq: MetricQuery, layer: Layer, current: Side, prior: Side) -> Split:
@@ -178,19 +190,19 @@ async def whole_table(principal: Principal, mq: MetricQuery, layer: Layer, curre
     count_measure = driver_specs().get(mq.measure, {}).get("count")
     counts: dict[str, Any] = {"current": 1, "prior": 1}
     records: list[dict[str, Any]] = []
-    sql: list[str] = []
+    ran: list[Ran] = []
     if kind == "sum" and count_measure:
         fetched = await fetch(principal, replace(mq, measure=count_measure, compare_to="prior_period"), layer)
         counted = sides(fetched, ratio=False)
         counts = {period: (counted[period].value or 0) if period in counted else 0 for period in counts}
-        records, sql = fetched.records(), [fetched.sql]
+        records, ran = fetched.records(), [fetched.ran]
     rows = []
     for period, side in (("current", current), ("prior", prior)):
         if kind == "ratio":
             rows.append([period, side.num, side.den])
         else:
             rows.append([period, side.value, side.value if kind == "count" else counts[period]])
-    return Split("", Table(["period", "value", "n"], rows), records, sql, {})
+    return Split("", Table(["period", "value", "n"], rows), records, ran, {})
 
 
 def decompose_params(dim: str | None) -> dict[str, Any]:

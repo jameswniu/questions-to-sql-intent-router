@@ -41,7 +41,7 @@ async def fetched(principal: Principal, mq: MetricQuery, layer: Layer) -> dv.Fet
     (dim,) = mq.group_by
     source = COUNTS if mq.measure == "claims_paid" else PAID
     rows = tuple((period, key, Decimal(value)) for period, key, value in source[dim])
-    return dv.Fetched(("period", dim, "value"), rows, f"SELECT {mq.measure} BY {dim}")
+    return dv.Fetched(("period", dim, "value"), rows, f"SELECT {mq.measure} BY {dim}", measure=mq.measure)
 
 
 async def test_every_share_of_a_two_dimension_sum_split_recomputes_from_the_rows_it_names(
@@ -72,7 +72,8 @@ async def test_every_share_of_a_two_dimension_sum_split_recomputes_from_the_rows
     checks = verify(Draft(claims, ()), evidence, principal_for("dana")).checks
     assert all(check.supported for check in checks), [(c.claim.text, c.reasons) for c in checks if not c.supported]
     # The state split's rows start after the peril split's value and count rows, and each share's numerator names
-    # the rows of its own group only.
+    # the paid-loss rows of its own group only, never the count rows beside them.
     for group in groups:
         named = {int(i) for i in re.findall(r"\[(\d+)\]", group.derivation)} - {0, 1}
-        assert named and all(evidence.rows[i][group.dim] == group.key for i in named), (group, named)
+        own = [(evidence.rows[i][group.dim], evidence.rows[i]["measure"]) for i in named]
+        assert named and set(own) == {(group.key, "paid_losses")}, (group, named)

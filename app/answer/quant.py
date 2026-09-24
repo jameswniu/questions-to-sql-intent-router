@@ -214,6 +214,12 @@ async def answer_quant(
     extracted = extract(question, layer, previous)
     if isinstance(extracted, Clarify):
         return _result("clarify", extracted.question, layer, clarify=extracted, query=extracted.partial)
+    return await answer_query(principal, extracted, layer=layer)
+
+
+async def answer_query(principal: Principal, extracted: MetricQuery, *, layer: Layer) -> QuantResult:
+    """The answer to a query already read from the question, by the rules or by live mode's extraction, checked,
+    scoped and run exactly as the question's own would be."""
     analyst = principal.kind == "analyst"
     asked = layer.measures.get(extracted.measure)
     if analyst and asked is not None and not asked.analyst:

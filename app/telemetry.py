@@ -3,7 +3,7 @@ import threading
 from collections import OrderedDict
 from collections.abc import Iterator, Mapping
 from contextlib import contextmanager
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from decimal import Decimal
 from typing import Any
 
@@ -26,7 +26,17 @@ INPUT_TOKENS = "gen_ai.usage.input_tokens"
 OUTPUT_TOKENS = "gen_ai.usage.output_tokens"
 CACHE_READ_TOKENS = "gen_ai.usage.cache_read.input_tokens"
 CACHE_WRITE_TOKENS = "gen_ai.usage.cache_creation.input_tokens"
+FINISH_REASONS = "gen_ai.response.finish_reasons"
 PROVIDERS = {"anthropic": "anthropic", "vertex": "gcp.vertex_ai"}
+# A model call's prompt template and the hash of its fixed parts: the system prompt, the tool schemas and the
+# template's id, never what the user asked.
+TEMPLATE = "claims_qa.template"
+TEMPLATE_HASH = "claims_qa.template_hash"
+# What the request span says about its model calls. Each call's usage stays on its own GenAI span, so a trace
+# backend that sums GenAI usage over a trace never counts a request twice.
+MODELS = "claims_qa.models"
+TEMPLATE_HASHES = "claims_qa.template_hashes"
+LIVE_FALLBACK = "claims_qa.live.fallback"
 
 # Anthropic list prices in USD per million tokens: input, output, cache read. Cache writes bill at 1.25x input.
 # Vertex bills Claude through Google, so a Vertex cost here is an estimate at list price.
@@ -46,6 +56,10 @@ class Usage:
     cache_read: int = 0
     # None once any call used a model with no known price, so an unknown cost never reads as zero.
     cost_usd: Decimal | None = Decimal(0)
+    cache_write: int = 0
+    # The models that answered, as each reply named itself, and each template called with its hash, in order.
+    models: list[str] = field(default_factory=list)
+    templates: dict[str, str] = field(default_factory=dict)
 
     def add(self, attrs: Mapping[str, Any]) -> None:
         total_in, out = int(attrs.get(INPUT_TOKENS, 0)), int(attrs.get(OUTPUT_TOKENS, 0))
@@ -53,6 +67,13 @@ class Usage:
         self.tokens_in += total_in
         self.tokens_out += out
         self.cache_read += read
+        self.cache_write += written
+        answered = attrs.get(RESPONSE_MODEL)
+        if answered and str(answered) not in self.models:
+            self.models.append(str(answered))
+        template, digest = attrs.get(TEMPLATE), attrs.get(TEMPLATE_HASH)
+        if template and digest:
+            self.templates[str(template)] = str(digest)
         model = str(attrs.get(RESPONSE_MODEL) or attrs.get(REQUEST_MODEL) or "").partition("@")[0]
         price = PRICES.get(model)
         if price is None or self.cost_usd is None:
@@ -117,9 +138,25 @@ def take_usage(trace_id: int) -> Usage:
     return _usage.take(trace_id)
 
 
+def request_attributes(usage: Usage, fallback: str | None) -> dict[str, AttributeValue]:
+    """The request span's summary of its model calls: the models that answered, each template called with its
+    hash, and why live mode fell back, if it did. Empty for a request that called no model and didn't fall back."""
+    attributes: dict[str, AttributeValue] = {}
+    if usage.models:
+        attributes[MODELS] = list(usage.models)
+    if usage.templates:
+        attributes[TEMPLATE_HASHES] = [f"{template}={digest}" for template, digest in usage.templates.items()]
+    if fallback:
+        attributes[LIVE_FALLBACK] = fallback
+    return attributes
+
+
 @dataclass(frozen=True)
 class ModelCall:
     span: Span
+
+    def record_template(self, template: str, digest: str) -> None:
+        self.span.set_attributes({TEMPLATE: template, TEMPLATE_HASH: digest})
 
     def record_usage(
         self,
@@ -129,6 +166,7 @@ class ModelCall:
         cache_read: int = 0,
         cache_write: int = 0,
         response_model: str | None = None,
+        finish_reason: str | None = None,
     ) -> None:
         """Takes the counts as Anthropic reports them, where input_tokens leaves out cache reads and writes."""
         attributes: dict[str, AttributeValue] = {
@@ -139,15 +177,17 @@ class ModelCall:
         }
         if response_model:
             attributes[RESPONSE_MODEL] = response_model
+        if finish_reason:
+            attributes[FINISH_REASONS] = [finish_reason]
         self.span.set_attributes(attributes)
 
 
 @contextmanager
-def model_call(model: str, operation: str = "chat") -> Iterator[ModelCall]:
+def model_call(model: str, operation: str = "chat", *, provider: str | None = None) -> Iterator[ModelCall]:
     """A GenAI client span around one model request. Nothing from the prompt or the reply goes on it."""
     attributes: dict[str, AttributeValue] = {
         OPERATION: operation,
-        PROVIDER: PROVIDERS.get(settings().backend, "anthropic"),
+        PROVIDER: provider or PROVIDERS.get(settings().backend, "anthropic"),
         REQUEST_MODEL: model,
     }
     with tracer().start_as_current_span(f"{operation} {model}", kind=SpanKind.CLIENT, attributes=attributes) as span:
