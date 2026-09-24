@@ -1,7 +1,9 @@
+from datetime import date
 from typing import Any
 
 import pytest
 
+from app.config import load_yaml
 from app.seed.rows import CHANNELS
 from app.semantic.layer import Layer, LayerError, parse_layer
 
@@ -102,3 +104,15 @@ def test_channel_values_are_the_four_the_seed_writes(layer: Layer) -> None:
 def test_longer_phrases_are_tried_first(layer: Layer) -> None:
     lengths = [len(p.text) for p in layer.phrases]
     assert lengths == sorted(lengths, reverse=True)
+
+
+def test_semantic_claims_yaml_and_data_policy_yaml_agree_on_as_of_and_coverage(layer_doc: dict[str, Any]) -> None:
+    # The seed writes its rows inside data/policy.yaml's window, and the figures path resolves periods against
+    # semantic/claims.yaml's, so a date changed in one file alone answers questions about rows that aren't there.
+    def window(doc: dict[str, Any]) -> dict[str, date]:
+        coverage = doc["coverage"]
+        return {"as_of": doc["as_of"], "coverage.start": coverage["start"], "coverage.end": coverage["end"]}
+
+    assert window(layer_doc) == window(load_yaml("policy.yaml")), (
+        "semantic/claims.yaml and data/policy.yaml must carry the same as_of and coverage window"
+    )

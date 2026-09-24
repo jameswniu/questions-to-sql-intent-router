@@ -7,8 +7,10 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     PATH=/opt/venv/bin:$PATH
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends tesseract-ocr=5.5.0-1+b1* tesseract-ocr-eng fonts-dejavu-core \
+    && apt-get install -y --no-install-recommends tesseract-ocr=5.5.0-1+b1* tesseract-ocr-eng=1:4.1.0-2 fonts-dejavu-core \
     && rm -rf /var/lib/apt/lists/*
+# OCR numbers are only reproducible with the same language data, so a changed eng.traineddata fails the build.
+RUN echo "7d4322bd2a7749724879683fc3912cb542f19906c83bcc1a52132556427170b2  /usr/share/tesseract-ocr/5/tessdata/eng.traineddata" | sha256sum -c -
 
 # The project itself is never installed: the code runs from /srv, which is the working directory.
 FROM base AS deps

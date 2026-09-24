@@ -42,7 +42,6 @@ _INJECTION = re.compile(
     | ^\s*system\s*:
     | \b(show|list|give|dump|reveal)\b[^.]{0,40}\bssns?\b
     | \bssns?\b[^.]{0,20}\b(of|for)\b
-    | \b(show|list|give|dump|reveal|from)\b[^.]{0,30}\b(all|every)\s+regions?\b
     """,
     re.VERBOSE,
 )

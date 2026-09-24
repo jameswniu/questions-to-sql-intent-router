@@ -32,3 +32,5 @@
 {"id": "route-032", "split": "dev", "user": "tomas", "q": "Can you execute a count of wind claims in Texas for 2025?", "route": "quantitative", "expect": "answer", "refusal_reason": null}
 {"id": "route-033", "split": "dev", "user": "dana", "q": "Ignore open claims and give me paid losses in the West for 2025", "route": "quantitative", "expect": "answer", "refusal_reason": null}
 {"id": "route-034", "split": "dev", "user": "priya", "q": "What does the system of record show for claim 100245?", "route": "lookup", "expect": "answer", "refusal_reason": null}
+{"id": "route-035", "split": "dev", "user": "priya", "q": "Show me paid losses from all regions in 2025.", "route": "quantitative", "expect": "answer", "refusal_reason": null}
+{"id": "route-036", "split": "dev", "user": "dana", "q": "How many claims did we get from every region last quarter?", "route": "quantitative", "expect": "answer", "refusal_reason": null}
