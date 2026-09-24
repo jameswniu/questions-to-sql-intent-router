@@ -111,3 +111,19 @@ def test_the_headline_table_shows_hits_of_n_with_the_interval(tmp_path: Path) ->
 def test_a_number_the_report_does_not_have_says_not_run() -> None:
     assert recount.inline(REPORT, "heldout.routing.accuracy") == "Not run"
     assert recount.inline(REPORT, "dev.routing.macro_f1") == "0.97"
+
+
+def test_a_route_only_ever_predicted_gets_no_recall_row_and_counts_as_unplaced() -> None:
+    report: dict[str, Any] = {
+        "dev": {"cases": {"routing": 4}, "routing": {
+            "per_class": {
+                "lookup": {"recall": rate(3, 4), "support": 4},
+                "residue": {"recall": rate(0, 1), "support": 0},
+            },
+            "confusion": {"lookup": {"lookup": 3, "residue": 1}},
+        }},
+    }  # fmt: skip
+    text = recount.routing(report)
+    assert "Recall, Lookup" in text
+    assert "Recall, Residue" not in text
+    assert "| Unplaced | 1 (n 4) | Not run |" in text

@@ -57,12 +57,12 @@ def markdown(header: tuple[str, ...], rows: Sequence[tuple[str, ...]]) -> str:
     return "\n".join(lines) + "\n"
 
 
-def by_split(report: Report, specs: list[Spec]) -> str:
+def by_split(report: Report, specs: list[Spec], extra: Sequence[tuple[str, ...]] = ()) -> str:
     rows = []
     for label, path, n_path, how in specs:
         cells = [cell(get(report, s, *path), get(report, s, *n_path) if n_path else None) for s in SPLITS]
         rows.append((label, *cells, how))
-    return markdown(("Metric", "Dev", "Held-out", "How it was made"), rows)
+    return markdown(("Metric", "Dev", "Held-out", "How it was made"), [*rows, *extra])
 
 
 def single(report: Report, specs: list[Spec]) -> str:
@@ -92,8 +92,15 @@ def routing(report: Report) -> str:
             f"Cases labelled {label} routed there",
         )
         for label in keys(report, "routing", "per_class")
+        if any(get(report, s, "routing", "per_class", label, "support") for s in SPLITS)
     ]
-    return by_split(report, specs)
+    unplaced = []
+    for s in SPLITS:
+        confusion = get(report, s, "routing", "confusion")
+        count = None if confusion is None else sum(row.get("residue", 0) for row in confusion.values())
+        unplaced.append(cell(count, get(report, s, "cases", "routing")))
+    how = "Cases no keyword rule placed. With no key they get the list of what the app answers. Live mode asks a model"
+    return by_split(report, specs, [("Unplaced", *unplaced, how)])
 
 
 def refusal(report: Report) -> str:
@@ -201,8 +208,11 @@ def permissions(report: Report) -> str:
          "Supervisor runs refused, not allowed, or told an existing claim was not found"),
         ("Leaks, note search", ("dev", "permissions", "search", "leaks"), ("dev", "permissions", "search", "runs"),
          "Every probe searched straight against the notes as every user, the same values looked for"),
-        ("Own-region canaries found", ("dev", "permissions", "controls", "own_canary_hits"),
-         ("dev", "permissions", "search", "runs"), "The control: note searches that returned the asker's own notes"),
+        ("Own notes in answers", ("dev", "permissions", "controls", "own_notes_in_answers"), runs,
+         "The control for the leak count: runs that showed the asker a note from their own region. The eval refuses"
+         " to report when it is 0"),
+        ("Own notes in searches", ("dev", "permissions", "controls", "own_notes_in_searches"),
+         ("dev", "permissions", "search", "runs"), "The same control for the note search"),
     ]  # fmt: skip
     specs += [
         (f"Leaks, {title(kind)}", ("dev", "permissions", "by_kind", kind), runs, "Leaks of this kind")
@@ -260,8 +270,8 @@ def headline(report: Report) -> str:
         ("Refused when they should be", ("refusal", "recall")),
         ("Refused only when they should be", ("refusal", "precision")),
         ("Answerable questions refused", ("refusal", "false_refusal")),
-        ("SQL answers equal to gold SQL", ("sql", "execution_accuracy")),
-        ("Wording answers citing a relevant passage", ("answers", "grounded")),
+        ("Figure answers equal to gold SQL", ("sql", "execution_accuracy")),
+        ("Document answers citing a relevant passage", ("answers", "grounded")),
         ("Why answers naming the planted driver", ("why", "driver_named")),
         ("Scan answers passed", ("ocr", "pass")),
         ("Wrong answers among all answers", ("abstention", "wrong_answer")),

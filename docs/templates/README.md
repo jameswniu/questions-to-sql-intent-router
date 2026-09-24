@@ -37,20 +37,20 @@ None of that needs a language model. The only models are a small embedder and a 
 
 | What could go wrong | What stops it | Measured |
 |---|---|---|
-| An adjuster asks about another region's claims | The question runs under the adjuster's own Postgres login. Row-level security on that login filters every table and view, so other regions' rows never leave the database. | 0 leaks in 84 runs, every probe asked as every user ([probes](evals/cases/permissions.jsonl)) |
+| An adjuster asks about another region's claims | The question runs under the adjuster's own Postgres login. Row-level security on that login filters every table and view, so other regions' rows never leave the database. | {{n dev.permissions.leaks}} leaks in {{n dev.permissions.runs}} runs, every probe asked as every user ([probes](evals/cases/permissions.jsonl)) |
 | Someone claims to be another user | The user picker only works on loopback. Behind a sign-in proxy, the user comes from the proxy's header, and a request without the proxy's shared secret gets a 401. | [Tested](tests/web/test_proxy_secret.py) |
 | The analyst rebuilds one claim from totals | Analysts can't read claim rows. They call `agg.metric()`, which withholds any cell with fewer than 10 claims or one claim over half its total. | [Tested](tests/integration/test_aggregates.py), and differencing two totals still works (below) |
 | A claim number confirms a claim exists in another region | A hidden claim and a missing one get the same reply. | [Tested](tests/quant/test_claim_lookup.py) |
-| Generated SQL writes, reads a PII column or calls something dangerous | Every login is read-only, its column grants leave out SSN, birth date, email and phone, and risky built-ins are revoked. An AST allow-list checks each statement first, and the grants stay the boundary. | 92 hostile statements run as all 6 roles, 0 did harm |
+| Generated SQL writes, reads a PII column or calls something dangerous | Every login is read-only, its column grants leave out SSN, birth date, email and phone, and risky built-ins are revoked. An AST allow-list checks each statement first, and the grants stay the boundary. | {{n shared.hostile_sql.statements}} hostile statements run as all {{n shared.hostile_sql.roles}} roles, {{n shared.hostile_sql.harmful}} did harm |
 | Analysis code runs wild | Each job gets a throwaway container with no network, a read-only root, 512 MB, one CPU, 64 processes, 10 seconds and 1 MiB of output, and only the rows the asker already fetched. | [13 hostile programs](tests/sandbox/test_limits.py), all contained |
 | A note in the document store says to ignore your instructions | Ingest screens every chunk and every whole document and keeps matches out of search. In live mode, the models that read documents hold no tools. | [20 of 20 planted](tests/docs/test_injection_screen.py) quarantined, no clean note |
 | A note or a scan leaks an SSN | Notes and OCR text are masked before they're stored or embedded. | [Every planted identifier](tests/docs/test_masking.py) masked |
 | The answer quotes the wrong policy edition | Search keeps only the wording in force on the date the question is about, and a question about a claim reads it on the claim's loss date. | [Tested](tests/docs/test_document_search.py) |
-| Search misses the passage that answers the question | Full-text and vector search, fused by rank, then a cross-encoder rerank. | Recall@5 16 of 17 dev, 11 of 11 held-out |
-| OCR drops the decimal point on a total | Every amount has to look like currency and match the claim's payments, or the answer flags it instead of stating it. | 16 of 20 misread fields and payment mismatches flagged |
-| A figure in the answer isn't in the data, or it "rose" when it fell | The verifier traces every figure to a query or sandbox result within a stated tolerance, checks direction and ranking words against the traced change, and cuts any sentence that fails. | 28 of 28 planted errors caught, 0 of 28 clean answers cut |
-| A question about 2023 gets an invented answer | The data covers January 2024 to June 2026, and a question outside that is told so. | 3 of 3 dev, 2 of 2 held-out |
-| Chit-chat or an injection attempt costs a round trip | The gate refuses before routing. | Recall 10 of 10 dev, 6 of 8 held-out. 1 of 3 held-out injections got through |
+| Search misses the passage that answers the question | Full-text and vector search, fused by rank, then a cross-encoder rerank. | Recall@5 {{n dev.retrieval.hybrid.recall_at_5}} dev, {{n heldout.retrieval.hybrid.recall_at_5}} held-out |
+| OCR drops the decimal point on a total | Every amount has to look like currency and match the claim's payments, or the answer flags it instead of stating it. | {{n shared.ocr_extraction.flag_recall}} misread fields and payment mismatches flagged |
+| A figure in the answer isn't in the data, or it "rose" when it fell | The verifier traces every figure to a query or sandbox result within a stated tolerance, checks direction and ranking words against the traced change, and cuts any sentence that fails. | {{n shared.verifier.recall}} planted errors caught, {{n shared.verifier.false_alarms}} clean answers cut |
+| A question about 2023 gets an invented answer | The data covers January 2024 to June 2026, and a question outside that is told so. | {{n dev.abstention.out_of_data}} dev, {{n heldout.abstention.out_of_data}} held-out |
+| Chit-chat or an injection attempt costs a round trip | The gate refuses before routing. | Recall {{n dev.refusal.recall}} dev, {{n heldout.refusal.recall}} held-out. {{n heldout.refusal.injections_missed}} of {{n heldout.refusal.injections}} held-out injections got through |
 | A slow query ties up a connection | Every login has a 4 second statement timeout, the client has its own deadline, and closing the tab cancels the query. | [Tested](tests/integration/test_db.py) |
 
 The long version, with the decision behind each row, is in [docs/DESIGN.md](docs/DESIGN.md).
@@ -59,19 +59,9 @@ The long version, with the decision behind each row, is in [docs/DESIGN.md](docs
 
 From `make eval` on this commit, with no API key. Dev cases shaped the rules. The held-out cases were hashed into `evals/heldout.lock` in the same commit as the first rules, and CI checks that none has changed. One scan label was corrected in both splits later, as [EVALS.md](docs/EVALS.md) explains. The brackets are 95% Wilson intervals.
 
-| Check | Dev | Held-out |
-|---|---|---|
-| Routed to the right path | 38 of 38 (0.91 to 1.00) | 22 of 26 (0.66 to 0.94) |
-| Refused when they should be | 10 of 10 (0.72 to 1.00) | 6 of 8 (0.41 to 0.93) |
-| Refused only when they should be | 10 of 10 (0.72 to 1.00) | 6 of 6 (0.61 to 1.00) |
-| Answerable questions refused | 0 of 23 (0.00 to 0.14) | 0 of 14 (0.00 to 0.22) |
-| Figure answers equal to gold SQL | 24 of 24 (0.86 to 1.00) | 9 of 12 (0.47 to 0.91) |
-| Document answers citing a relevant passage | 17 of 17 (0.82 to 1.00) | 7 of 9 (0.45 to 0.94) |
-| Why answers naming the planted driver | 4 of 4 (0.51 to 1.00) | 3 of 3 (0.44 to 1.00) |
-| Scan answers passed | 13 of 13 (0.77 to 1.00) | 3 of 3 (0.44 to 1.00) |
-| Wrong answers among all answers | 0 of 79 (0.00 to 0.05) | 0 of 34 (0.00 to 0.10) |
+{{table headline}}
 
-On dev, why answers take 928 ms at the median and everything else under a second. Every table, with how each number is made, is in [docs/EVALS.md](docs/EVALS.md). Live mode is tested against a scripted model and hasn't been scored against a real one yet.
+On dev, why answers take {{n dev.latency.why.p50_ms}} ms at the median and everything else under a second. Every table, with how each number is made, is in [docs/EVALS.md](docs/EVALS.md). Live mode is tested against a scripted model and hasn't been scored against a real one yet.
 
 ## Who sees what
 
@@ -95,7 +85,7 @@ Two adjusters and the analyst ask about the same claim.
 - Vector search is exact. An HNSW index filters after the scan, so under row-level security it returns fewer than k rows unless iterative scan is on, and a test shows it.
 - `sandboxd` holds the Docker socket, which is root on the host. Production would run jobs in Firecracker or gVisor.
 - OCR confidence isn't calibrated, and the scans are generated, so the OCR numbers say little about real paper.
-- One person wrote the questions, the labels, the gold SQL and the rules. Rewordings and typos written by a different model family drop routing from 56 of 56 to 147 of 168 and SQL from 24 of 24 to 54 of 72. Typos hit SQL hardest, 9 of 24 right against 45 of 48 for rewordings, because the keyword extractor needs a measure, grouping or period word spelled the way it knows, and "loss raito" isn't.
+- One person wrote the questions, the labels, the gold SQL and the rules. Rewordings and typos written by a different model family drop routing from {{n dev.robustness.routing.original}} to {{n dev.robustness.routing.variants}} and SQL from {{n dev.robustness.sql.original}} to {{n dev.robustness.sql.variants}}. Typos hit SQL hardest, {{n dev.robustness.by_variant.typo.sql}} right against {{n dev.robustness.by_variant.paraphrase.sql}} for rewordings, because the keyword extractor needs a measure, grouping or period word spelled the way it knows, and "loss raito" isn't.
 - The gate and the router are English keyword rules, so a reworded injection can get past the gate. With no key it reaches a path that never calls a model, and in live mode the model that places it holds no tools.
 - Comparative wording the verifier doesn't list, such as "twice" or "a majority", goes unchecked.
 - There's no knowledge graph, because the relationships already live in SQL, and no answer cache, because answers depend on who asks.

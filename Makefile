@@ -69,3 +69,7 @@ lint: ## Ruff and mypy
 
 psql: ## Open psql in the database as postgres
 	docker compose exec db psql -U postgres -d claims
+
+.PHONY: demos
+demos: ## Record the README's demo clips and dashboard still into docs/demo (needs make up, and CLIPS=why records one)
+	uv run python tools/record_demos.py $(CLIPS)

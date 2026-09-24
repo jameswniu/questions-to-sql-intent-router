@@ -1,0 +1,1371 @@
+{
+  "dev": {
+    "abstention": {
+      "clarify": {
+        "high": 1.0,
+        "hits": 2,
+        "low": 0.3424,
+        "n": 2,
+        "value": 1.0
+      },
+      "out_of_data": {
+        "high": 1.0,
+        "hits": 3,
+        "low": 0.4385,
+        "n": 3,
+        "value": 1.0
+      },
+      "wrong_answer": {
+        "high": 0.0464,
+        "hits": 0,
+        "low": 0.0,
+        "n": 79,
+        "value": 0.0
+      }
+    },
+    "answers": {
+      "answered": {
+        "high": 1.0,
+        "hits": 17,
+        "low": 0.8157,
+        "n": 17,
+        "value": 1.0
+      },
+      "claims_cut": {
+        "high": 0.0897,
+        "hits": 0,
+        "low": 0.0,
+        "n": 39,
+        "value": 0.0
+      },
+      "fact_recall": {
+        "high": 1.0,
+        "hits": 8,
+        "low": 0.6756,
+        "n": 8,
+        "value": 1.0
+      },
+      "grounded": {
+        "high": 1.0,
+        "hits": 17,
+        "low": 0.8157,
+        "n": 17,
+        "value": 1.0
+      }
+    },
+    "cases": {
+      "ocr": 13,
+      "paraphrase": 168,
+      "permissions": 84,
+      "qualitative": 17,
+      "quantitative": 24,
+      "routing": 38,
+      "why": 4
+    },
+    "latency": {
+      "clarify": {
+        "first_event_p50_ms": 0,
+        "n": 3,
+        "p50_ms": 1,
+        "p95_ms": 1
+      },
+      "lookup": {
+        "first_event_p50_ms": 0,
+        "n": 47,
+        "p50_ms": 3,
+        "p95_ms": 6
+      },
+      "out_of_data": {
+        "first_event_p50_ms": 0,
+        "n": 12,
+        "p50_ms": 0,
+        "p95_ms": 1
+      },
+      "qualitative": {
+        "first_event_p50_ms": 0,
+        "n": 78,
+        "p50_ms": 476,
+        "p95_ms": 697
+      },
+      "quantitative": {
+        "first_event_p50_ms": 1,
+        "n": 138,
+        "p50_ms": 4,
+        "p95_ms": 8
+      },
+      "refuse": {
+        "first_event_p50_ms": 0,
+        "n": 31,
+        "p50_ms": 0,
+        "p95_ms": 0
+      },
+      "residue": {
+        "first_event_p50_ms": 0,
+        "n": 19,
+        "p50_ms": 0,
+        "p95_ms": 1
+      },
+      "why": {
+        "first_event_p50_ms": 2,
+        "n": 20,
+        "p50_ms": 928,
+        "p95_ms": 1069
+      }
+    },
+    "ocr": {
+      "by_expect": {
+        "answer": {
+          "high": 1.0,
+          "hits": 7,
+          "low": 0.6457,
+          "n": 7,
+          "value": 1.0
+        },
+        "flag": {
+          "high": 1.0,
+          "hits": 2,
+          "low": 0.3424,
+          "n": 2,
+          "value": 1.0
+        },
+        "no_wrong_number": {
+          "high": 1.0,
+          "hits": 4,
+          "low": 0.5101,
+          "n": 4,
+          "value": 1.0
+        }
+      },
+      "failures": {},
+      "pass": {
+        "high": 1.0,
+        "hits": 13,
+        "low": 0.7719,
+        "n": 13,
+        "value": 1.0
+      }
+    },
+    "permissions": {
+      "by_kind": {
+        "canary": 0,
+        "claim_id": 0,
+        "pii": 0,
+        "scan_total": 0
+      },
+      "controls": {
+        "own_notes_in_answers": 19,
+        "own_notes_in_searches": 70
+      },
+      "leaked": [],
+      "leaks": 0,
+      "over_restricted": 0,
+      "over_restricted_runs": [],
+      "probes": 14,
+      "runs": 84,
+      "search": {
+        "leaked": [],
+        "leaks": 0,
+        "runs": 84
+      },
+      "users": 6
+    },
+    "refusal": {
+      "f1": 1.0,
+      "false_refusal": {
+        "high": 0.1431,
+        "hits": 0,
+        "low": 0.0,
+        "n": 23,
+        "value": 0.0
+      },
+      "injections": 3,
+      "injections_missed": 0,
+      "precision": {
+        "high": 1.0,
+        "hits": 10,
+        "low": 0.7225,
+        "n": 10,
+        "value": 1.0
+      },
+      "recall": {
+        "high": 1.0,
+        "hits": 10,
+        "low": 0.7225,
+        "n": 10,
+        "value": 1.0
+      }
+    },
+    "retrieval": {
+      "by_kind": {
+        "adjuster": {
+          "hybrid": {
+            "high": 0.9881,
+            "hits": 14,
+            "low": 0.7018,
+            "n": 15,
+            "value": 0.9333
+          },
+          "lexical": {
+            "high": 0.9295,
+            "hits": 12,
+            "low": 0.5481,
+            "n": 15,
+            "value": 0.8
+          },
+          "vector": {
+            "high": 1.0,
+            "hits": 15,
+            "low": 0.7961,
+            "n": 15,
+            "value": 1.0
+          }
+        },
+        "supervisor": {
+          "hybrid": {
+            "high": 1.0,
+            "hits": 2,
+            "low": 0.3424,
+            "n": 2,
+            "value": 1.0
+          },
+          "lexical": {
+            "high": 1.0,
+            "hits": 2,
+            "low": 0.3424,
+            "n": 2,
+            "value": 1.0
+          },
+          "vector": {
+            "high": 1.0,
+            "hits": 2,
+            "low": 0.3424,
+            "n": 2,
+            "value": 1.0
+          }
+        }
+      },
+      "hybrid": {
+        "mrr_at_10": 0.9055,
+        "n": 17,
+        "ndcg_at_10": 0.9273,
+        "precision_at_5": {
+          "high": 0.2841,
+          "hits": 16,
+          "low": 0.1193,
+          "n": 85,
+          "value": 0.1882
+        },
+        "recall_at_10": {
+          "high": 1.0,
+          "hits": 17,
+          "low": 0.8157,
+          "n": 17,
+          "value": 1.0
+        },
+        "recall_at_5": {
+          "high": 0.9895,
+          "hits": 16,
+          "low": 0.7302,
+          "n": 17,
+          "value": 0.9412
+        }
+      },
+      "lexical": {
+        "mrr_at_10": 0.6188,
+        "n": 17,
+        "ndcg_at_10": 0.7089,
+        "precision_at_5": {
+          "high": 0.2577,
+          "hits": 14,
+          "low": 0.1007,
+          "n": 85,
+          "value": 0.1647
+        },
+        "recall_at_10": {
+          "high": 1.0,
+          "hits": 17,
+          "low": 0.8157,
+          "n": 17,
+          "value": 1.0
+        },
+        "recall_at_5": {
+          "high": 0.9381,
+          "hits": 14,
+          "low": 0.5897,
+          "n": 17,
+          "value": 0.8235
+        }
+      },
+      "vector": {
+        "mrr_at_10": 0.7206,
+        "n": 17,
+        "ndcg_at_10": 0.7914,
+        "precision_at_5": {
+          "high": 0.2972,
+          "hits": 17,
+          "low": 0.1288,
+          "n": 85,
+          "value": 0.2
+        },
+        "recall_at_10": {
+          "high": 1.0,
+          "hits": 17,
+          "low": 0.8157,
+          "n": 17,
+          "value": 1.0
+        },
+        "recall_at_5": {
+          "high": 1.0,
+          "hits": 17,
+          "low": 0.8157,
+          "n": 17,
+          "value": 1.0
+        }
+      }
+    },
+    "robustness": {
+      "by_variant": {
+        "paraphrase": {
+          "routing": {
+            "high": 0.9443,
+            "hits": 101,
+            "low": 0.8327,
+            "n": 112,
+            "value": 0.9018
+          },
+          "sql": {
+            "high": 0.9785,
+            "hits": 45,
+            "low": 0.8316,
+            "n": 48,
+            "value": 0.9375
+          }
+        },
+        "typo": {
+          "routing": {
+            "high": 0.9,
+            "hits": 46,
+            "low": 0.7016,
+            "n": 56,
+            "value": 0.8214
+          },
+          "sql": {
+            "high": 0.5729,
+            "hits": 9,
+            "low": 0.2116,
+            "n": 24,
+            "value": 0.375
+          }
+        }
+      },
+      "misrouted": [
+        "quant-006-t1",
+        "quant-011-t1",
+        "quant-023-t1",
+        "route-006-t1",
+        "route-009-t1",
+        "route-014-p2",
+        "route-016-p2",
+        "route-017-p1",
+        "route-017-p2",
+        "route-017-t1",
+        "route-018-p1",
+        "route-018-p2",
+        "route-022-p1",
+        "route-022-p2",
+        "route-022-t1",
+        "route-026-t1",
+        "route-028-p1",
+        "route-028-p2",
+        "route-028-t1",
+        "route-029-p1",
+        "route-029-t1"
+      ],
+      "routing": {
+        "drop": 0.125,
+        "original": {
+          "high": 1.0,
+          "hits": 56,
+          "low": 0.9358,
+          "n": 56,
+          "value": 1.0
+        },
+        "variants": {
+          "high": 0.9168,
+          "hits": 147,
+          "low": 0.8165,
+          "n": 168,
+          "value": 0.875
+        }
+      },
+      "sql": {
+        "drop": 0.25,
+        "original": {
+          "high": 1.0,
+          "hits": 24,
+          "low": 0.862,
+          "n": 24,
+          "value": 1.0
+        },
+        "variants": {
+          "high": 0.8356,
+          "hits": 54,
+          "low": 0.6391,
+          "n": 72,
+          "value": 0.75
+        }
+      }
+    },
+    "routing": {
+      "accuracy": {
+        "high": 1.0,
+        "hits": 38,
+        "low": 0.9082,
+        "n": 38,
+        "value": 1.0
+      },
+      "confusion": {
+        "clarify": {
+          "clarify": 2
+        },
+        "lookup": {
+          "lookup": 4
+        },
+        "out_of_data": {
+          "out_of_data": 3
+        },
+        "qualitative": {
+          "qualitative": 8
+        },
+        "quantitative": {
+          "quantitative": 8
+        },
+        "refuse": {
+          "refuse": 10
+        },
+        "why": {
+          "why": 3
+        }
+      },
+      "macro_f1": 1.0,
+      "misrouted": [],
+      "per_class": {
+        "clarify": {
+          "f1": 1.0,
+          "precision": {
+            "high": 1.0,
+            "hits": 2,
+            "low": 0.3424,
+            "n": 2,
+            "value": 1.0
+          },
+          "recall": {
+            "high": 1.0,
+            "hits": 2,
+            "low": 0.3424,
+            "n": 2,
+            "value": 1.0
+          },
+          "support": 2
+        },
+        "lookup": {
+          "f1": 1.0,
+          "precision": {
+            "high": 1.0,
+            "hits": 4,
+            "low": 0.5101,
+            "n": 4,
+            "value": 1.0
+          },
+          "recall": {
+            "high": 1.0,
+            "hits": 4,
+            "low": 0.5101,
+            "n": 4,
+            "value": 1.0
+          },
+          "support": 4
+        },
+        "out_of_data": {
+          "f1": 1.0,
+          "precision": {
+            "high": 1.0,
+            "hits": 3,
+            "low": 0.4385,
+            "n": 3,
+            "value": 1.0
+          },
+          "recall": {
+            "high": 1.0,
+            "hits": 3,
+            "low": 0.4385,
+            "n": 3,
+            "value": 1.0
+          },
+          "support": 3
+        },
+        "qualitative": {
+          "f1": 1.0,
+          "precision": {
+            "high": 1.0,
+            "hits": 8,
+            "low": 0.6756,
+            "n": 8,
+            "value": 1.0
+          },
+          "recall": {
+            "high": 1.0,
+            "hits": 8,
+            "low": 0.6756,
+            "n": 8,
+            "value": 1.0
+          },
+          "support": 8
+        },
+        "quantitative": {
+          "f1": 1.0,
+          "precision": {
+            "high": 1.0,
+            "hits": 8,
+            "low": 0.6756,
+            "n": 8,
+            "value": 1.0
+          },
+          "recall": {
+            "high": 1.0,
+            "hits": 8,
+            "low": 0.6756,
+            "n": 8,
+            "value": 1.0
+          },
+          "support": 8
+        },
+        "refuse": {
+          "f1": 1.0,
+          "precision": {
+            "high": 1.0,
+            "hits": 10,
+            "low": 0.7225,
+            "n": 10,
+            "value": 1.0
+          },
+          "recall": {
+            "high": 1.0,
+            "hits": 10,
+            "low": 0.7225,
+            "n": 10,
+            "value": 1.0
+          },
+          "support": 10
+        },
+        "why": {
+          "f1": 1.0,
+          "precision": {
+            "high": 1.0,
+            "hits": 3,
+            "low": 0.4385,
+            "n": 3,
+            "value": 1.0
+          },
+          "recall": {
+            "high": 1.0,
+            "hits": 3,
+            "low": 0.4385,
+            "n": 3,
+            "value": 1.0
+          },
+          "support": 3
+        }
+      }
+    },
+    "sql": {
+      "by_kind": {
+        "adjuster": {
+          "high": 1.0,
+          "hits": 11,
+          "low": 0.7412,
+          "n": 11,
+          "value": 1.0
+        },
+        "analyst": {
+          "high": 1.0,
+          "hits": 2,
+          "low": 0.3424,
+          "n": 2,
+          "value": 1.0
+        },
+        "supervisor": {
+          "high": 1.0,
+          "hits": 11,
+          "low": 0.7412,
+          "n": 11,
+          "value": 1.0
+        }
+      },
+      "execution_accuracy": {
+        "high": 1.0,
+        "hits": 24,
+        "low": 0.862,
+        "n": 24,
+        "value": 1.0
+      },
+      "misses": {}
+    },
+    "why": {
+      "answered": {
+        "high": 1.0,
+        "hits": 4,
+        "low": 0.5101,
+        "n": 4,
+        "value": 1.0
+      },
+      "cited": {
+        "high": 1.0,
+        "hits": 4,
+        "low": 0.5101,
+        "n": 4,
+        "value": 1.0
+      },
+      "driver_named": {
+        "high": 1.0,
+        "hits": 4,
+        "low": 0.5101,
+        "n": 4,
+        "value": 1.0
+      }
+    }
+  },
+  "heldout": {
+    "abstention": {
+      "clarify": {
+        "high": 1.0,
+        "hits": 2,
+        "low": 0.3424,
+        "n": 2,
+        "value": 1.0
+      },
+      "out_of_data": {
+        "high": 1.0,
+        "hits": 2,
+        "low": 0.3424,
+        "n": 2,
+        "value": 1.0
+      },
+      "wrong_answer": {
+        "high": 0.1015,
+        "hits": 0,
+        "low": 0.0,
+        "n": 34,
+        "value": 0.0
+      }
+    },
+    "answers": {
+      "answered": {
+        "high": 0.9368,
+        "hits": 7,
+        "low": 0.4526,
+        "n": 9,
+        "value": 0.7778
+      },
+      "claims_cut": {
+        "high": 0.2039,
+        "hits": 0,
+        "low": 0.0,
+        "n": 15,
+        "value": 0.0
+      },
+      "fact_recall": {
+        "high": 0.7923,
+        "hits": 1,
+        "low": 0.0615,
+        "n": 3,
+        "value": 0.3333
+      },
+      "grounded": {
+        "high": 0.9368,
+        "hits": 7,
+        "low": 0.4526,
+        "n": 9,
+        "value": 0.7778
+      }
+    },
+    "cases": {
+      "ocr": 3,
+      "qualitative": 9,
+      "quantitative": 12,
+      "routing": 26,
+      "why": 3
+    },
+    "latency": {
+      "clarify": {
+        "first_event_p50_ms": 0,
+        "n": 1,
+        "p50_ms": 1,
+        "p95_ms": 1
+      },
+      "lookup": {
+        "first_event_p50_ms": 0,
+        "n": 5,
+        "p50_ms": 4,
+        "p95_ms": 6
+      },
+      "out_of_data": {
+        "first_event_p50_ms": 0,
+        "n": 2,
+        "p50_ms": 0,
+        "p95_ms": 1
+      },
+      "qualitative": {
+        "first_event_p50_ms": 0,
+        "n": 12,
+        "p50_ms": 543,
+        "p95_ms": 627
+      },
+      "quantitative": {
+        "first_event_p50_ms": 1,
+        "n": 16,
+        "p50_ms": 4,
+        "p95_ms": 10
+      },
+      "refuse": {
+        "first_event_p50_ms": 0,
+        "n": 6,
+        "p50_ms": 0,
+        "p95_ms": 0
+      },
+      "residue": {
+        "first_event_p50_ms": 0,
+        "n": 5,
+        "p50_ms": 0,
+        "p95_ms": 1
+      },
+      "why": {
+        "first_event_p50_ms": 2,
+        "n": 6,
+        "p50_ms": 659,
+        "p95_ms": 1347
+      }
+    },
+    "ocr": {
+      "by_expect": {
+        "answer": {
+          "high": 1.0,
+          "hits": 1,
+          "low": 0.2065,
+          "n": 1,
+          "value": 1.0
+        },
+        "flag": {
+          "high": 1.0,
+          "hits": 1,
+          "low": 0.2065,
+          "n": 1,
+          "value": 1.0
+        },
+        "no_wrong_number": {
+          "high": 1.0,
+          "hits": 1,
+          "low": 0.2065,
+          "n": 1,
+          "value": 1.0
+        }
+      },
+      "failures": {},
+      "pass": {
+        "high": 1.0,
+        "hits": 3,
+        "low": 0.4385,
+        "n": 3,
+        "value": 1.0
+      }
+    },
+    "refusal": {
+      "f1": 0.8571,
+      "false_refusal": {
+        "high": 0.2153,
+        "hits": 0,
+        "low": 0.0,
+        "n": 14,
+        "value": 0.0
+      },
+      "injections": 3,
+      "injections_missed": 1,
+      "precision": {
+        "high": 1.0,
+        "hits": 6,
+        "low": 0.6097,
+        "n": 6,
+        "value": 1.0
+      },
+      "recall": {
+        "high": 0.9285,
+        "hits": 6,
+        "low": 0.4093,
+        "n": 8,
+        "value": 0.75
+      }
+    },
+    "retrieval": {
+      "by_kind": {
+        "adjuster": {
+          "hybrid": {
+            "high": 1.0,
+            "hits": 10,
+            "low": 0.7225,
+            "n": 10,
+            "value": 1.0
+          },
+          "lexical": {
+            "high": 0.9821,
+            "hits": 9,
+            "low": 0.5958,
+            "n": 10,
+            "value": 0.9
+          },
+          "vector": {
+            "high": 0.9821,
+            "hits": 9,
+            "low": 0.5958,
+            "n": 10,
+            "value": 0.9
+          }
+        },
+        "supervisor": {
+          "hybrid": {
+            "high": 1.0,
+            "hits": 1,
+            "low": 0.2065,
+            "n": 1,
+            "value": 1.0
+          },
+          "lexical": {
+            "high": 0.7935,
+            "hits": 0,
+            "low": 0.0,
+            "n": 1,
+            "value": 0.0
+          },
+          "vector": {
+            "high": 1.0,
+            "hits": 1,
+            "low": 0.2065,
+            "n": 1,
+            "value": 1.0
+          }
+        }
+      },
+      "hybrid": {
+        "mrr_at_10": 0.9259,
+        "n": 9,
+        "ndcg_at_10": 0.9444,
+        "precision_at_5": {
+          "high": 0.3867,
+          "hits": 11,
+          "low": 0.1424,
+          "n": 45,
+          "value": 0.2444
+        },
+        "recall_at_10": {
+          "high": 1.0,
+          "hits": 11,
+          "low": 0.7412,
+          "n": 11,
+          "value": 1.0
+        },
+        "recall_at_5": {
+          "high": 1.0,
+          "hits": 11,
+          "low": 0.7412,
+          "n": 11,
+          "value": 1.0
+        }
+      },
+      "lexical": {
+        "mrr_at_10": 0.8148,
+        "n": 9,
+        "ndcg_at_10": 0.8344,
+        "precision_at_5": {
+          "high": 0.3382,
+          "hits": 9,
+          "low": 0.109,
+          "n": 45,
+          "value": 0.2
+        },
+        "recall_at_10": {
+          "high": 1.0,
+          "hits": 11,
+          "low": 0.7412,
+          "n": 11,
+          "value": 1.0
+        },
+        "recall_at_5": {
+          "high": 0.9486,
+          "hits": 9,
+          "low": 0.523,
+          "n": 11,
+          "value": 0.8182
+        }
+      },
+      "vector": {
+        "mrr_at_10": 0.9,
+        "n": 9,
+        "ndcg_at_10": 0.9121,
+        "precision_at_5": {
+          "high": 0.3627,
+          "hits": 10,
+          "low": 0.1254,
+          "n": 45,
+          "value": 0.2222
+        },
+        "recall_at_10": {
+          "high": 1.0,
+          "hits": 11,
+          "low": 0.7412,
+          "n": 11,
+          "value": 1.0
+        },
+        "recall_at_5": {
+          "high": 0.9838,
+          "hits": 10,
+          "low": 0.6226,
+          "n": 11,
+          "value": 0.9091
+        }
+      }
+    },
+    "routing": {
+      "accuracy": {
+        "high": 0.9385,
+        "hits": 22,
+        "low": 0.6647,
+        "n": 26,
+        "value": 0.8462
+      },
+      "confusion": {
+        "clarify": {
+          "clarify": 1,
+          "residue": 1
+        },
+        "lookup": {
+          "lookup": 2
+        },
+        "out_of_data": {
+          "out_of_data": 2
+        },
+        "qualitative": {
+          "qualitative": 5,
+          "residue": 1
+        },
+        "quantitative": {
+          "quantitative": 4
+        },
+        "refuse": {
+          "refuse": 6,
+          "residue": 2
+        },
+        "why": {
+          "why": 2
+        }
+      },
+      "macro_f1": 0.919,
+      "misrouted": [
+        "route-h-012",
+        "route-h-016",
+        "route-h-019",
+        "route-h-024"
+      ],
+      "per_class": {
+        "clarify": {
+          "f1": 0.6667,
+          "precision": {
+            "high": 1.0,
+            "hits": 1,
+            "low": 0.2065,
+            "n": 1,
+            "value": 1.0
+          },
+          "recall": {
+            "high": 0.9055,
+            "hits": 1,
+            "low": 0.0945,
+            "n": 2,
+            "value": 0.5
+          },
+          "support": 2
+        },
+        "lookup": {
+          "f1": 1.0,
+          "precision": {
+            "high": 1.0,
+            "hits": 2,
+            "low": 0.3424,
+            "n": 2,
+            "value": 1.0
+          },
+          "recall": {
+            "high": 1.0,
+            "hits": 2,
+            "low": 0.3424,
+            "n": 2,
+            "value": 1.0
+          },
+          "support": 2
+        },
+        "out_of_data": {
+          "f1": 1.0,
+          "precision": {
+            "high": 1.0,
+            "hits": 2,
+            "low": 0.3424,
+            "n": 2,
+            "value": 1.0
+          },
+          "recall": {
+            "high": 1.0,
+            "hits": 2,
+            "low": 0.3424,
+            "n": 2,
+            "value": 1.0
+          },
+          "support": 2
+        },
+        "qualitative": {
+          "f1": 0.9091,
+          "precision": {
+            "high": 1.0,
+            "hits": 5,
+            "low": 0.5655,
+            "n": 5,
+            "value": 1.0
+          },
+          "recall": {
+            "high": 0.9699,
+            "hits": 5,
+            "low": 0.4365,
+            "n": 6,
+            "value": 0.8333
+          },
+          "support": 6
+        },
+        "quantitative": {
+          "f1": 1.0,
+          "precision": {
+            "high": 1.0,
+            "hits": 4,
+            "low": 0.5101,
+            "n": 4,
+            "value": 1.0
+          },
+          "recall": {
+            "high": 1.0,
+            "hits": 4,
+            "low": 0.5101,
+            "n": 4,
+            "value": 1.0
+          },
+          "support": 4
+        },
+        "refuse": {
+          "f1": 0.8571,
+          "precision": {
+            "high": 1.0,
+            "hits": 6,
+            "low": 0.6097,
+            "n": 6,
+            "value": 1.0
+          },
+          "recall": {
+            "high": 0.9285,
+            "hits": 6,
+            "low": 0.4093,
+            "n": 8,
+            "value": 0.75
+          },
+          "support": 8
+        },
+        "residue": {
+          "f1": 0.0,
+          "precision": {
+            "high": 0.4899,
+            "hits": 0,
+            "low": 0.0,
+            "n": 4,
+            "value": 0.0
+          },
+          "recall": {
+            "high": 0.0,
+            "hits": 0,
+            "low": 0.0,
+            "n": 0,
+            "value": 0.0
+          },
+          "support": 0
+        },
+        "why": {
+          "f1": 1.0,
+          "precision": {
+            "high": 1.0,
+            "hits": 2,
+            "low": 0.3424,
+            "n": 2,
+            "value": 1.0
+          },
+          "recall": {
+            "high": 1.0,
+            "hits": 2,
+            "low": 0.3424,
+            "n": 2,
+            "value": 1.0
+          },
+          "support": 2
+        }
+      }
+    },
+    "sql": {
+      "by_kind": {
+        "adjuster": {
+          "high": 0.9285,
+          "hits": 6,
+          "low": 0.4093,
+          "n": 8,
+          "value": 0.75
+        },
+        "analyst": {
+          "high": 1.0,
+          "hits": 1,
+          "low": 0.2065,
+          "n": 1,
+          "value": 1.0
+        },
+        "supervisor": {
+          "high": 0.9385,
+          "hits": 2,
+          "low": 0.2077,
+          "n": 3,
+          "value": 0.6667
+        }
+      },
+      "execution_accuracy": {
+        "high": 0.9111,
+        "hits": 9,
+        "low": 0.4677,
+        "n": 12,
+        "value": 0.75
+      },
+      "misses": {
+        "quant-012": "answered as quantitative, clarify",
+        "quant-017": "answered as quantitative, clarify",
+        "quant-030": "answered as quantitative, clarify"
+      }
+    },
+    "why": {
+      "answered": {
+        "high": 1.0,
+        "hits": 3,
+        "low": 0.4385,
+        "n": 3,
+        "value": 1.0
+      },
+      "cited": {
+        "high": 1.0,
+        "hits": 3,
+        "low": 0.4385,
+        "n": 3,
+        "value": 1.0
+      },
+      "driver_named": {
+        "high": 1.0,
+        "hits": 3,
+        "low": 0.4385,
+        "n": 3,
+        "value": 1.0
+      }
+    }
+  },
+  "shared": {
+    "hostile_sql": {
+      "executions": 552,
+      "harmful": 0,
+      "roles": 6,
+      "state_unchanged": true,
+      "statements": 92
+    },
+    "ocr_extraction": {
+      "exact_match": {
+        "claim_number": {
+          "high": 0.9908,
+          "hits": 58,
+          "low": 0.8864,
+          "n": 60,
+          "value": 0.9667
+        },
+        "date": {
+          "high": 0.9971,
+          "hits": 59,
+          "low": 0.9114,
+          "n": 60,
+          "value": 0.9833
+        },
+        "line_item": {
+          "high": 0.9866,
+          "hits": 155,
+          "low": 0.9289,
+          "n": 160,
+          "value": 0.9688
+        },
+        "total": {
+          "high": 0.9829,
+          "hits": 57,
+          "low": 0.863,
+          "n": 60,
+          "value": 0.95
+        },
+        "vendor": {
+          "high": 0.9971,
+          "hits": 59,
+          "low": 0.9114,
+          "n": 60,
+          "value": 0.9833
+        }
+      },
+      "flag_precision": {
+        "high": 0.9895,
+        "hits": 16,
+        "low": 0.7302,
+        "n": 17,
+        "value": 0.9412
+      },
+      "flag_recall": {
+        "high": 0.9193,
+        "hits": 16,
+        "low": 0.584,
+        "n": 20,
+        "value": 0.8
+      },
+      "missing_scans": [],
+      "scans": 60,
+      "total_cer": 0.0388,
+      "total_chars": 438
+    },
+    "verifier": {
+      "by_mutation": {
+        "constant": {
+          "high": 1.0,
+          "hits": 2,
+          "low": 0.3424,
+          "n": 2,
+          "value": 1.0
+        },
+        "digit": {
+          "high": 1.0,
+          "hits": 2,
+          "low": 0.3424,
+          "n": 2,
+          "value": 1.0
+        },
+        "direction": {
+          "high": 1.0,
+          "hits": 2,
+          "low": 0.3424,
+          "n": 2,
+          "value": 1.0
+        },
+        "multiple": {
+          "high": 1.0,
+          "hits": 2,
+          "low": 0.3424,
+          "n": 2,
+          "value": 1.0
+        },
+        "other_region_source": {
+          "high": 1.0,
+          "hits": 2,
+          "low": 0.3424,
+          "n": 2,
+          "value": 1.0
+        },
+        "percent": {
+          "high": 1.0,
+          "hits": 2,
+          "low": 0.3424,
+          "n": 2,
+          "value": 1.0
+        },
+        "percent_change": {
+          "high": 1.0,
+          "hits": 2,
+          "low": 0.3424,
+          "n": 2,
+          "value": 1.0
+        },
+        "period": {
+          "high": 1.0,
+          "hits": 2,
+          "low": 0.3424,
+          "n": 2,
+          "value": 1.0
+        },
+        "region": {
+          "high": 1.0,
+          "hits": 2,
+          "low": 0.3424,
+          "n": 2,
+          "value": 1.0
+        },
+        "rounding": {
+          "high": 1.0,
+          "hits": 2,
+          "low": 0.3424,
+          "n": 2,
+          "value": 1.0
+        },
+        "superlative": {
+          "high": 1.0,
+          "hits": 2,
+          "low": 0.3424,
+          "n": 2,
+          "value": 1.0
+        },
+        "swap": {
+          "high": 1.0,
+          "hits": 2,
+          "low": 0.3424,
+          "n": 2,
+          "value": 1.0
+        },
+        "unretrieved_source": {
+          "high": 1.0,
+          "hits": 2,
+          "low": 0.3424,
+          "n": 2,
+          "value": 1.0
+        },
+        "unsupported_sentence": {
+          "high": 1.0,
+          "hits": 2,
+          "low": 0.3424,
+          "n": 2,
+          "value": 1.0
+        }
+      },
+      "caught": 28,
+      "clean": 28,
+      "collateral": 0,
+      "false_alarms": {
+        "high": 0.1206,
+        "hits": 0,
+        "low": 0.0,
+        "n": 28,
+        "value": 0.0
+      },
+      "planted": 28,
+      "recall": {
+        "high": 1.0,
+        "hits": 28,
+        "low": 0.8794,
+        "n": 28,
+        "value": 1.0
+      }
+    }
+  }
+}
