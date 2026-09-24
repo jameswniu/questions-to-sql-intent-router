@@ -1,0 +1,161 @@
+# The business vocabulary the quantitative path is allowed to use. A question is turned into
+# one of these measures plus dimensions, filters and a period; the compiler writes the SQL.
+# The analyst path can only reach the measures also listed in agg.allowed_measures, under the
+# same names, so the two paths agree on what a number means.
+
+as_of: 2026-07-15
+coverage: {start: 2024-01-01, end: 2026-06-30}
+
+measures:
+  claim_count:
+    label: claims reported
+    kind: count
+    format: integer
+    source: sem.v_claims
+    date: loss_date
+    sql: count(*)
+    synonyms: [claims, claim count, number of claims, claims filed, claims reported, how many claims, new claims]
+
+  paid_losses:
+    label: paid losses
+    kind: sum
+    format: currency
+    source: sem.v_payments_net
+    date: paid_date
+    sql: sum(amount)
+    synonyms: [paid losses, paid, payouts, payments, losses paid, amount paid, claim payments, paid out, did we pay, we paid]
+
+  claims_paid:
+    label: claims with a payment
+    kind: count
+    format: integer
+    source: sem.v_payments_net
+    date: paid_date
+    sql: count(distinct claim_id)
+    synonyms: [claims paid, paid claims, claims with payments, claims with a payment, claims had a payment, had a payment]
+
+  avg_severity:
+    label: average paid per closed claim
+    kind: ratio
+    format: currency
+    source: sem.v_claims
+    date: closed_date
+    numerator: sum(paid_total)
+    denominator: count(*)
+    where: "status = 'closed' and paid_total > 0"
+    synonyms: [severity, average severity, average claim, average payout, average paid, avg claim cost, cost per claim]
+
+  denial_rate:
+    label: share of decided claims denied
+    kind: ratio
+    format: percent
+    source: sem.v_claims
+    date: closed_date
+    numerator: "count(*) filter (where status = 'denied')"
+    denominator: count(*)
+    where: "status in ('closed', 'denied')"
+    synonyms: [denial rate, denials, denied share, rejection rate, percent denied]
+
+  loss_ratio:
+    label: paid losses over earned premium
+    kind: ratio
+    format: percent
+    source: [sem.v_payments_net, sem.v_premium]
+    date: month
+    numerator: sum(amount)
+    denominator: sum(earned_premium)
+    synonyms: [loss ratio, paid loss ratio]
+    note: Grouping is limited to region and time, the grain earned premium is kept at.
+
+  open_reserve:
+    label: reserves on open claims
+    kind: sum
+    format: currency
+    source: sem.v_claims
+    point_in_time: true
+    sql: sum(reserve)
+    where: "status = 'open'"
+    synonyms: [reserves, open reserves, outstanding reserves, reserve]
+    note: A snapshot at the data's as-of date, so it takes no period and never asks for one.
+
+dimensions:
+  region:
+    column: region
+    values: [North, South, East, West]
+    synonyms: {north: North, south: South, east: East, west: West, northern: North, southern: South, eastern: East, western: West}
+  state:
+    column: state
+    values: [MN, WI, TX, OK, PA, OH, CO, AZ]
+    synonyms:
+      minnesota: MN
+      wisconsin: WI
+      texas: TX
+      oklahoma: OK
+      pennsylvania: PA
+      ohio: OH
+      colorado: CO
+      arizona: AZ
+  peril:
+    column: peril
+    values: [water, wind, hail, fire, theft, mold]
+    synonyms:
+      water damage: water
+      burst pipe: water
+      frozen pipe: water
+      leak: water
+      wind damage: wind
+      windstorm: wind
+      hail damage: hail
+      hailstorm: hail
+      fire damage: fire
+      smoke: fire
+      burglary: theft
+      stolen: theft
+      mould: mold
+      fungus: mold
+  channel:
+    column: channel
+    values: [phone, web, app, agent]
+    synonyms: {online: web, website: web, mobile: app, mobile app: app, call: phone, broker: agent}
+  status:
+    column: status
+    values: [open, closed, denied]
+    analyst: false
+  month: {grain: month}
+  quarter: {grain: quarter}
+  year: {grain: year}
+
+# Drivers the why path decomposes a change into. Each identity is exact, so the parts add
+# back to the change in the total.
+drivers:
+  paid_losses:
+    identity: paid_losses = claims_paid * (paid_losses / claims_paid)
+    count: claims_paid
+    breakdown: [peril, state]
+  claim_count:
+    identity: claim_count is a sum over peril and state
+    breakdown: [peril, state]
+  avg_severity:
+    identity: mix shift across perils plus change within each peril
+    breakdown: [peril, state]
+
+# Budgets the dashboard draws against.
+budgets:
+  simple_p95_s: 2.0
+  why_p95_s: 25.0
+
+# Verified examples. The live extractor sees these as few-shot examples, and the unit tests
+# check the rule-based extractor produces the same query for each.
+examples:
+  - q: How much did we pay on hail claims in Colorado in Q2 2025?
+    query: {measure: paid_losses, filters: {peril: [hail], state: [CO]}, period: 2025-Q2}
+  - q: How many claims were reported in the North in January 2025?
+    query: {measure: claim_count, filters: {region: [North]}, period: 2025-01}
+  - q: What was average severity by peril last year?
+    query: {measure: avg_severity, group_by: [peril], period: 2025}
+  - q: Denial rate for wind claims in 2025 versus 2024
+    query: {measure: denial_rate, filters: {peril: [wind]}, period: 2025, compare_to: prior_year}
+  - q: Paid losses by month in 2026
+    query: {measure: paid_losses, group_by: [month], period: 2026}
+  - q: What's the loss ratio in the West for Q3 2025?
+    query: {measure: loss_ratio, filters: {region: [West]}, period: 2025-Q3}
