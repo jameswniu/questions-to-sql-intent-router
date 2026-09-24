@@ -9,10 +9,10 @@
 <text x="535" y="62" text-anchor="middle" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI','Noto Sans',Helvetica,Arial,sans-serif" font-size="26" font-weight="600" fill="#1f2328">Lookup</text>
 <text x="535" y="94" text-anchor="middle" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI','Noto Sans',Helvetica,Arial,sans-serif" font-size="23" fill="#59636e">one claim by id</text>
 <rect x="410" y="124" width="250" height="80" rx="10" fill="#ddf4ff" stroke="#54aeff" stroke-width="2"/>
-<text x="535" y="156" text-anchor="middle" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI','Noto Sans',Helvetica,Arial,sans-serif" font-size="26" font-weight="600" fill="#1f2328">Numbers</text>
+<text x="535" y="156" text-anchor="middle" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI','Noto Sans',Helvetica,Arial,sans-serif" font-size="26" font-weight="600" fill="#1f2328">Figures</text>
 <text x="535" y="188" text-anchor="middle" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI','Noto Sans',Helvetica,Arial,sans-serif" font-size="23" fill="#59636e">semantic layer</text>
 <rect x="410" y="218" width="250" height="80" rx="10" fill="#ddf4ff" stroke="#54aeff" stroke-width="2"/>
-<text x="535" y="250" text-anchor="middle" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI','Noto Sans',Helvetica,Arial,sans-serif" font-size="26" font-weight="600" fill="#1f2328">Wording</text>
+<text x="535" y="250" text-anchor="middle" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI','Noto Sans',Helvetica,Arial,sans-serif" font-size="26" font-weight="600" fill="#1f2328">Documents</text>
 <text x="535" y="282" text-anchor="middle" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI','Noto Sans',Helvetica,Arial,sans-serif" font-size="23" fill="#59636e">hybrid search</text>
 <rect x="410" y="312" width="250" height="80" rx="10" fill="#ddf4ff" stroke="#54aeff" stroke-width="2"/>
 <text x="535" y="344" text-anchor="middle" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI','Noto Sans',Helvetica,Arial,sans-serif" font-size="26" font-weight="600" fill="#1f2328">Why</text>

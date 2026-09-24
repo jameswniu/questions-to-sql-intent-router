@@ -90,8 +90,8 @@ def system_map() -> str:
         for i, lines in enumerate(
             [
                 ("Lookup", "one claim by id"),
-                ("Numbers", "semantic layer"),
-                ("Wording", "hybrid search"),
+                ("Figures", "semantic layer"),
+                ("Documents", "hybrid search"),
                 ("Why", "drivers + memos"),
             ]
         )
