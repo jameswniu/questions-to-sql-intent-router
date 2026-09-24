@@ -8,7 +8,7 @@ from typing import Any
 
 import psycopg
 from psycopg import AsyncConnection, sql
-from psycopg.rows import TupleRow
+from psycopg.rows import TupleRow, dict_row
 from psycopg_pool import AsyncConnectionPool
 
 from app.identity import Principal, db_credentials, role_conninfo
@@ -56,6 +56,7 @@ async def _chat_pool(principal: Principal) -> Pool:
                 max_size=3,
                 open=False,
                 configure=_read_only,
+                check=Pool.check_connection,
                 name=f"chat-{principal.db_role}",
             )
             await pool.open()
@@ -72,6 +73,8 @@ async def _writer_pool() -> Pool:
                 min_size=1,
                 max_size=2,
                 open=False,
+                # Checked on checkout, so a database restart costs a reconnect instead of a lost log row.
+                check=Pool.check_connection,
                 name="app-writer",
             )
             await _writer.open()
@@ -115,6 +118,16 @@ async def write(query: Statement, params: Params = None) -> None:
     pool = await _writer_pool()
     async with pool.connection() as conn, conn.transaction():
         await conn.execute(query, params)
+
+
+async def read_ops(query: Statement, params: Params = None) -> list[dict[str, Any]]:
+    """Reads the ops tables as app_writer, in a read-only transaction. Its grants reach no claims data."""
+    pool = await _writer_pool()
+    async with pool.connection() as conn, conn.transaction():
+        await conn.execute("SET TRANSACTION READ ONLY")
+        async with conn.cursor(row_factory=dict_row) as cur:
+            await cur.execute(query, params)
+            return await cur.fetchall()
 
 
 @contextmanager

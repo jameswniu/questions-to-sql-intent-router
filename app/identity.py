@@ -15,6 +15,8 @@ class Principal:
     db_role: str
     kind: str
     regions: tuple[str, ...]
+    # May open the service dashboard.
+    ops: bool = False
 
 
 class UnknownUser(LookupError):
@@ -33,6 +35,7 @@ def principals() -> dict[str, Principal]:
             db_role=user["role"],
             kind=roles[user["role"]]["kind"],
             regions=tuple(roles[user["role"]]["regions"]),
+            ops=user.get("ops") is True,
         )
         for user in doc["users"]
     }

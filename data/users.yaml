@@ -1,11 +1,12 @@
 # Demo users stand in for an identity provider. Each maps to one Postgres login role,
 # and every query a user causes runs on a connection that logs in as that role.
+# ops: true lets a user open the service dashboard.
 users:
   - {id: dana, name: Dana Reyes, title: "Claims adjuster, West", role: u_adj_west}
   - {id: omar, name: Omar Haddad, title: "Claims adjuster, East", role: u_adj_east}
   - {id: june, name: June Park, title: "Claims adjuster, North", role: u_adj_north}
   - {id: tomas, name: Tomas Ruiz, title: "Claims adjuster, South", role: u_adj_south}
-  - {id: priya, name: Priya Natarajan, title: "Claims supervisor, all regions", role: u_supervisor}
+  - {id: priya, name: Priya Natarajan, title: "Claims supervisor, all regions", role: u_supervisor, ops: true}
   - {id: sam, name: Sam Whitfield, title: "Analyst, aggregates only", role: u_analyst}
 roles:
   u_adj_north: {kind: adjuster, regions: [North]}

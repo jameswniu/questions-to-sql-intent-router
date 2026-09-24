@@ -78,7 +78,7 @@ def _cells(compiled: Compiled, rows: list[tuple[Any, ...]], dims: list[str], rat
     return cells
 
 
-def _scope(mq: MetricQuery, principal: Principal, layer: Layer) -> tuple[MetricQuery | None, str | None]:
+def scope(mq: MetricQuery, principal: Principal, layer: Layer) -> tuple[MetricQuery | None, str | None]:
     """Keeps an adjuster's question inside their regions and says what that leaves out."""
     visible = set(principal.regions)
     if principal.kind != "adjuster" or visible >= set(layer.dimensions["region"].values):
@@ -224,7 +224,7 @@ async def answer_quant(
         return _result("clarify", resolved.question, layer, clarify=resolved, query=resolved.partial)
     if isinstance(resolved, OutOfData):
         return _result("out_of_data", resolved.reason, layer, query=extracted)
-    scoped, scope_note = _scope(resolved, principal, layer)
+    scoped, scope_note = scope(resolved, principal, layer)
     if scoped is None:
         return _result("not_allowed", scope_note or "", layer, query=resolved)
     compiled = compile(scoped, layer, principal)

@@ -232,7 +232,7 @@ def test_each_user_maps_to_one_login_role_that_cannot_assume_its_group(superuser
             " WHERE r.rolname = %s",
             (p.db_role,),
         ).fetchall()
-        assert memberships == [(True, False, False, 4, f"chat_{p.kind}", True, False)], p.db_role
+        assert memberships == [(True, False, False, 10, f"chat_{p.kind}", True, False)], p.db_role
 
 
 def test_payment_region_cannot_disagree_with_its_claim(superuser: Connection) -> None:

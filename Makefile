@@ -2,7 +2,7 @@
 .PHONY: help secrets up down reset logs test test-sandbox test-unit lint psql
 
 ROLES := $(shell sed -n 's/^  \(u_[a-z_]*\):.*/\1/p' data/users.yaml)
-SECRET_KEYS := POSTGRES_PASSWORD APP_WRITER_PASSWORD GOLD_READER_PASSWORD \
+SECRET_KEYS := POSTGRES_PASSWORD APP_WRITER_PASSWORD GOLD_READER_PASSWORD SESSION_SECRET \
 	$(foreach role,$(ROLES),PGPASS_$(shell echo $(role) | tr a-z A-Z))
 
 help: ## List targets

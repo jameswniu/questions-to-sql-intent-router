@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Dashboard, Claims Q&amp;A</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body class="dash">
+  <header class="topbar">
+    <a class="brand" href="/">Claims Q&amp;A</a>
+    <nav class="filters" aria-label="Requests from">
+      {% for f in filters %}
+      <a href="{{ f.href }}"{% if f.current %} aria-current="page"{% endif %}>{{ f.label }}</a>
+      {% endfor %}
+    </nav>
+    <a class="nav" href="/">Chat</a>
+  </header>
+
+  <main class="dashboard">
+    <h1>Service dashboard</h1>
+    <p class="muted">{{ scope }} Read from ops.request_log, ops.feedback and ops.eval_runs.</p>
+
+    {% if not requests %}
+    <section class="panel empty">
+      <h2>No requests yet</h2>
+      <p class="muted">Ask a question in the chat and it shows up here within a second.</p>
+    </section>
+    {% else %}
+    <div class="tiles">
+      {% for label, value in tiles %}
+      <div class="tile"><span class="tile-value">{{ value }}</span><span class="tile-label">{{ label }}</span></div>
+      {% endfor %}
+    </div>
+
+    <section class="panel">
+      <h2>Latency by route</h2>
+      <p class="muted">Time to the first streamed event and to the end of the answer. The dashed line is the route's p95 budget.</p>
+      {% for chart in latency %}{{ chart }}{% else %}<p>No finished requests yet.</p>{% endfor %}
+    </section>
+
+    <section class="panel">
+      <h2>Traffic and outcomes</h2>
+      {% if by_route %}{{ by_route }}{% endif %}
+      {% if outcomes %}{{ outcomes }}{% endif %}
+    </section>
+
+    <section class="panel">
+      <h2>Verifier</h2>
+      <p class="muted">{{ verifier.note }}</p>
+      {% if verifier.chart %}{{ verifier.chart }}{% endif %}
+    </section>
+
+    <section class="panel">
+      <h2>Feedback</h2>
+      {% if feedback %}{{ feedback }}{% else %}<p class="muted">No ratings yet.</p>{% endif %}
+    </section>
+
+    <section class="panel">
+      <h2>Cost per question</h2>
+      <p class="muted">{{ cost.note }}</p>
+      {% if cost.chart %}{{ cost.chart }}{% endif %}
+    </section>
+    {% endif %}
+
+    <section class="panel">
+      <h2>Latest eval runs</h2>
+      {% if evals %}
+      <div class="table-wrap">
+        <table class="metrics">
+          <thead>
+            <tr>
+              <th scope="col">Metric</th>
+              {% for run in evals.runs %}
+              <th scope="col">{{ run.split }}<span class="sub">{{ run.date }}, {{ run.mode }}{% if run.commit %}, <code>{{ run.commit[:7] }}</code>{% endif %}</span></th>
+              {% endfor %}
+            </tr>
+          </thead>
+          <tbody>
+            {% for name, values in evals.rows %}
+            <tr><th scope="row"><code>{{ name }}</code></th>{% for value in values %}<td>{{ value }}</td>{% endfor %}</tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}
+      <p class="muted">No eval runs yet.</p>
+      {% endif %}
+    </section>
+  </main>
+</body>
+</html>
