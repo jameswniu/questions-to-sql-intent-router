@@ -20,6 +20,7 @@ dependencies = [
     "faker>=37.0",
     "pillow>=11.0",
     "opentelemetry-exporter-otlp-proto-http>=1.30",
+    "google-genai>=1.40",
 ]
 
 [dependency-groups]

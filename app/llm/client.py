@@ -120,6 +120,12 @@ class LLM(Protocol):
     @property
     def provider(self) -> str: ...
 
+    @property
+    def checker(self) -> "LLM":
+        """The client that reads a cited sentence against its passage: this one, or one LLM_CHECK_BACKEND put on
+        another model family."""
+        ...
+
     async def complete(self, request: Request) -> Response:
         """Sends the request and returns the reply whatever its stop reason. Callers go through ask."""
         ...
@@ -233,9 +239,11 @@ class AnthropicLLM:
         fast_model: str,
         main_model: str,
         provider: str,
+        checker: LLM | None = None,
     ) -> None:
         self._client = client
         self._fast, self._main, self._provider = fast_model, main_model, provider
+        self._checker = checker
 
     @property
     def fast_model(self) -> str:
@@ -248,6 +256,10 @@ class AnthropicLLM:
     @property
     def provider(self) -> str:
         return self._provider
+
+    @property
+    def checker(self) -> LLM:
+        return self if self._checker is None else self._checker
 
     async def complete(self, request: Request) -> Response:
         started = time.perf_counter()
@@ -267,8 +279,50 @@ class LiveConfigError(ValueError):
     pass
 
 
+# What LLM_CHECK_BACKEND may be set to. same, or unset, leaves the support check on the live client itself.
+CHECK_BACKENDS = ("same", "gemini", "anthropic", "vertex")
+
+
+def _claude(
+    env: Mapping[str, str], backend: str, setting: str
+) -> anthropic.AsyncAnthropic | anthropic.AsyncAnthropicVertex:
+    """A Claude client for the anthropic or vertex backend. The setting that named it goes into the error."""
+    if backend == "anthropic":
+        key = env.get("ANTHROPIC_API_KEY")
+        if not key:
+            raise LiveConfigError(f"{setting}=anthropic needs ANTHROPIC_API_KEY")
+        return anthropic.AsyncAnthropic(api_key=key, max_retries=MAX_RETRIES)
+    project = env.get("VERTEX_PROJECT_ID")
+    if not project:
+        raise LiveConfigError(f"{setting}=vertex needs VERTEX_PROJECT_ID")
+    region = env.get("VERTEX_REGION") or DEFAULT_REGION
+    return anthropic.AsyncAnthropicVertex(project_id=project, region=region, max_retries=MAX_RETRIES)
+
+
+def _checker(env: Mapping[str, str]) -> LLM | None:
+    """The client LLM_CHECK_BACKEND puts the support check on, or None when the live client checks for itself."""
+    name = (env.get("LLM_CHECK_BACKEND") or "").strip().lower() or "same"
+    if name not in CHECK_BACKENDS:
+        raise LiveConfigError(f"LLM_CHECK_BACKEND must be one of {', '.join(CHECK_BACKENDS)}, not {name!r}")
+    if name == "same":
+        return None
+    model = env.get("LIVE_CHECK_MODEL")
+    if name == "gemini":
+        project = env.get("GEMINI_PROJECT") or env.get("VERTEX_PROJECT_ID")
+        if not project:
+            raise LiveConfigError("LLM_CHECK_BACKEND=gemini needs GEMINI_PROJECT or VERTEX_PROJECT_ID")
+        # Imported here because the Gemini client imports this module.
+        from app.llm.gemini import DEFAULT_LOCATION, DEFAULT_MODEL, GeminiLLM
+
+        return GeminiLLM.on_vertex(project, env.get("GEMINI_LOCATION") or DEFAULT_LOCATION, model or DEFAULT_MODEL)
+    model = model or FAST_MODEL
+    client = _claude(env, name, "LLM_CHECK_BACKEND")
+    return AnthropicLLM(client, fast_model=model, main_model=model, provider=telemetry.PROVIDERS[name])
+
+
 def from_env(env: Mapping[str, str] | None = None) -> LLM | None:
-    """The live model client the environment asks for, or None when LLM_BACKEND is unset or off, the default."""
+    """The live model client the environment asks for, or None when LLM_BACKEND is unset or off, the default.
+    LLM_CHECK_BACKEND only means something beside a live LLM_BACKEND."""
     env = os.environ if env is None else env
     try:
         backend = backend_from(env)
@@ -276,23 +330,14 @@ def from_env(env: Mapping[str, str] | None = None) -> LLM | None:
         raise LiveConfigError(str(exc)) from None
     if backend == "none":
         return None
-    models = {
-        "fast_model": env.get("LIVE_FAST_MODEL") or FAST_MODEL,
-        "main_model": env.get("LIVE_MAIN_MODEL") or MAIN_MODEL,
-    }
-    client: anthropic.AsyncAnthropic | anthropic.AsyncAnthropicVertex
-    if backend == "anthropic":
-        key = env.get("ANTHROPIC_API_KEY")
-        if not key:
-            raise LiveConfigError("LLM_BACKEND=anthropic needs ANTHROPIC_API_KEY")
-        client = anthropic.AsyncAnthropic(api_key=key, max_retries=MAX_RETRIES)
-    else:
-        project = env.get("VERTEX_PROJECT_ID")
-        if not project:
-            raise LiveConfigError("LLM_BACKEND=vertex needs VERTEX_PROJECT_ID")
-        region = env.get("VERTEX_REGION") or DEFAULT_REGION
-        client = anthropic.AsyncAnthropicVertex(project_id=project, region=region, max_retries=MAX_RETRIES)
-    return AnthropicLLM(client, provider=telemetry.PROVIDERS[backend], **models)
+    client = _claude(env, backend, "LLM_BACKEND")
+    return AnthropicLLM(
+        client,
+        fast_model=env.get("LIVE_FAST_MODEL") or FAST_MODEL,
+        main_model=env.get("LIVE_MAIN_MODEL") or MAIN_MODEL,
+        provider=telemetry.PROVIDERS[backend],
+        checker=_checker(env),
+    )
 
 
 @cache
@@ -300,5 +345,13 @@ def default() -> LLM | None:
     """The process's live client, built on first use so that importing the app never constructs one."""
     llm = from_env()
     if llm is not None:
-        log.info("live mode on: %s, fast model %s, main model %s", llm.provider, llm.fast_model, llm.main_model)
+        checker = llm.checker
+        log.info(
+            "live mode on: %s, fast model %s, main model %s, checker %s %s",
+            llm.provider,
+            llm.fast_model,
+            llm.main_model,
+            checker.provider,
+            checker.fast_model,
+        )
     return llm

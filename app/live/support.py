@@ -54,8 +54,11 @@ def request(model: str, statement: str, sources: Sequence[Hit]) -> Request:
 
 
 async def check(llm: LLM, statement: str, sources: Sequence[Hit]) -> Verdict:
-    """Reads one statement against the chunks it cites, on the fast model with no tools."""
-    return parse(await ask(llm, request(llm.fast_model, statement, sources)), Verdict)
+    """Reads one statement against the chunks it cites, with no tools, on the fast model of the live client's
+    checker. That is the live client itself unless LLM_CHECK_BACKEND puts the reading on another model family, whose
+    reading doesn't share the writer's blind spots."""
+    reader = llm.checker
+    return parse(await ask(reader, request(reader.fast_model, statement, sources)), Verdict)
 
 
 def _cited(claims: Sequence[Claim], evidence: Evidence) -> dict[tuple[Claim, str], tuple[Hit, ...]]:

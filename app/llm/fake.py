@@ -4,7 +4,7 @@ from collections.abc import Awaitable, Callable, Mapping, Sequence
 from dataclasses import replace
 from typing import Any
 
-from app.llm.client import FAST_MODEL, MAIN_MODEL, Citation, Response, Text, ToolCall, Usage
+from app.llm.client import FAST_MODEL, LLM, MAIN_MODEL, Citation, Response, Text, ToolCall, Usage
 from app.llm.request import Request
 
 type Step = Response | BaseException | Callable[[Request], Response | Awaitable[Response]]
@@ -17,11 +17,15 @@ class ScriptExhausted(BaseException):
 
 
 class ScriptedLLM:
-    """Answers with scripted responses in order and records every request it was sent, for tests to assert on."""
+    """Answers with scripted responses in order and records every request it was sent, for tests to assert on. It
+    checks what it wrote itself, unless it is given a checker with a script of its own."""
 
-    def __init__(self, *script: Step, fast_model: str = FAST_MODEL, main_model: str = MAIN_MODEL) -> None:
+    def __init__(
+        self, *script: Step, fast_model: str = FAST_MODEL, main_model: str = MAIN_MODEL, checker: LLM | None = None
+    ) -> None:
         self._script = list(script)
         self._fast, self._main = fast_model, main_model
+        self._checker = checker
         self.requests: list[Request] = []
 
     @property
@@ -35,6 +39,10 @@ class ScriptedLLM:
     @property
     def provider(self) -> str:
         return "fake"
+
+    @property
+    def checker(self) -> LLM:
+        return self if self._checker is None else self._checker
 
     @property
     def left(self) -> int:

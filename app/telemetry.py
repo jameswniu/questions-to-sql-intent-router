@@ -38,13 +38,15 @@ MODELS = "claims_qa.models"
 TEMPLATE_HASHES = "claims_qa.template_hashes"
 LIVE_FALLBACK = "claims_qa.live.fallback"
 
-# Anthropic list prices in USD per million tokens: input, output, cache read. Cache writes bill at 1.25x input.
+# List prices in USD per million tokens: input, output, cache read. Claude's cache writes bill at 1.25x input.
 # Vertex bills Claude through Google, so a Vertex cost here is an estimate at list price.
 PRICES = {
     "claude-opus-5-5": (Decimal("4"), Decimal("20"), Decimal("0.20")),
     "claude-opus-5": (Decimal("5"), Decimal("25"), Decimal("0.50")),
     "claude-sonnet-5": (Decimal("2"), Decimal("10"), Decimal("0.20")),
     "claude-haiku-4-5": (Decimal("1"), Decimal("5"), Decimal("0.10")),
+    # Vertex's introductory price on the global endpoint, through 2026-12-31. It then rises to 1.50, 7.50 and 0.15.
+    "gemini-3.8-flash": (Decimal("0.75"), Decimal("3.75"), Decimal("0.075")),
 }
 CACHE_WRITE_RATE = Decimal("1.25")
 
