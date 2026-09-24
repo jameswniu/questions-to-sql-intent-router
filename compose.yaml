@@ -36,6 +36,8 @@ services:
     command: ["python", "-m", "app.bootstrap"]
     depends_on:
       db: {condition: service_healthy}
+      # The replay step asks why questions, which split their change in the sandbox.
+      sandboxd: {condition: service_healthy}
     env_file: var/secrets.env
     environment: *db-env
     networks: [backend]
@@ -55,12 +57,12 @@ services:
     environment:
       <<: *db-env
       SANDBOXD_URL: http://sandboxd:8700
-    ports:
-      - "127.0.0.1:${APP_PORT:-8000}:8000"
       IDENTITY_MODE: ${IDENTITY_MODE:-demo}
       BIND_HOST: 0.0.0.0
       # The container listens on 0.0.0.0, but the port is published on 127.0.0.1 only.
       DEMO_ALLOW_NON_LOOPBACK: "1"
+    ports:
+      - "127.0.0.1:${APP_PORT:-8000}:8000"
     networks: [backend, frontend]
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/healthz')"]

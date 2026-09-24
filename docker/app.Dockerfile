@@ -67,6 +67,8 @@ COPY app ./app
 COPY data ./data
 COPY db ./db
 COPY semantic ./semantic
+# The bootstrap replay asks the DEV questions; the held-out set never goes into an image.
+COPY evals/cases ./evals/cases
 
 FROM app-base AS test
 COPY --from=deps-dev /opt/venv /opt/venv

@@ -1,0 +1,68 @@
+name: checks
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  checks:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          # The scrub reads every commit message, so it needs the whole history.
+          fetch-depth: 0
+
+      - uses: astral-sh/setup-uv@v10
+        with:
+          version: "0.12.18"
+          python-version: "3.13"
+
+      - name: Install
+        run: uv sync --frozen
+
+      - name: Ruff
+        run: uv run ruff check .
+
+      - name: Formatting
+        run: uv run ruff format --check .
+
+      - name: Mypy
+        run: uv run mypy
+
+      - name: Held-out set is unchanged
+        run: shasum -a 256 -c evals/heldout.lock
+
+      - name: Numbers in the docs match evals/report.json
+        run: uv run python tools/recount.py --check
+
+      - name: Scrub
+        env:
+          SCRUB_TERMS: ${{ secrets.SCRUB_TERMS }}
+        run: |
+          if [ -z "$SCRUB_TERMS" ]; then
+            echo "::notice::The SCRUB_TERMS secret is not set, so the scrub was skipped."
+            exit 0
+          fi
+          terms="$RUNNER_TEMP/scrub-terms"
+          printf '%s\n' "$SCRUB_TERMS" | sed 's/\r$//; /^[[:space:]]*$/d' > "$terms"
+          # Masked first, so a term never reaches the log even inside a file name.
+          while IFS= read -r term; do echo "::add-mask::$term"; done < "$terms"
+          failed=0
+          if files=$(git grep -I -i -w -l -F -f "$terms"); then
+            echo "::error::A scrub term appears in these tracked files:"
+            echo "$files"
+            failed=1
+          fi
+          for sha in $(git rev-list HEAD); do
+            if git log -1 --format=%B "$sha" | grep -q -i -w -F -f "$terms"; then
+              echo "::error::A scrub term appears in the message of commit $sha"
+              failed=1
+            fi
+          done
+          exit "$failed"

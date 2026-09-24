@@ -1,5 +1,6 @@
 import os
 import re
+from dataclasses import dataclass
 from typing import Any
 
 import psycopg
@@ -97,7 +98,22 @@ def _harm(role: str, hidden: set[str], statement: str) -> tuple[set[str], bool]:
     return flags, executed
 
 
-def test_no_hostile_statement_does_harm_as_any_chat_role() -> None:
+@dataclass(frozen=True)
+class Tally:
+    statements: int
+    roles: int
+    harmful: int
+    state_unchanged: bool
+    # Watched capabilities that still execute at the database layer, by statement.
+    open_at_db: dict[str, set[str]]
+
+    @property
+    def executions(self) -> int:
+        return self.statements * self.roles
+
+
+def tally() -> Tally:
+    """Every hostile statement run as every chat role; the eval runner reports the same tally."""
     before = _canary()
     harmful = 0
     executed_at_db: dict[str, set[str]] = {}
@@ -111,18 +127,21 @@ def test_no_hostile_statement_does_harm_as_any_chat_role() -> None:
             if executed:
                 executed_at_db.setdefault(statement, set()).add(role)
     after = _canary()
+    watched = {s: roles for s, roles in executed_at_db.items() if any(w in s.lower() for w in _WATCH)}
+    return Tally(len(HOSTILE), len(CHAT_ROLES), harmful, after == before, watched)
 
-    total = len(HOSTILE) * len(CHAT_ROLES)
-    print(f"\nhostile matrix: {len(HOSTILE)} statements x {len(CHAT_ROLES)} roles = {total} executions")
-    print(f"harmful executions = {harmful}")
 
-    leaks = {s: roles for s, roles in executed_at_db.items() if any(w in s.lower() for w in _WATCH)}
-    if leaks:
+def test_no_hostile_statement_does_harm_as_any_chat_role() -> None:
+    result = tally()
+    print(f"\nhostile matrix: {result.statements} statements x {result.roles} roles = {result.executions} executions")
+    print(f"harmful executions = {result.harmful}")
+
+    if result.open_at_db:
         print("CAPABILITY STILL OPEN at the DB layer (blocked today only by check(), pending the PUBLIC revoke):")
-        for statement, roles in leaks.items():
+        for statement, roles in result.open_at_db.items():
             print(f"  runs for {sorted(roles)}: {statement[:70]}")
     else:
         print("advisory locks and pg_logical_emit_message: already blocked at the DB layer for chat roles")
 
-    assert after == before
-    assert harmful == 0
+    assert result.state_unchanged
+    assert result.harmful == 0

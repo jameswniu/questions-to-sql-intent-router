@@ -1,5 +1,5 @@
 .DEFAULT_GOAL := help
-.PHONY: help secrets up down reset logs test test-sandbox test-unit lint psql
+.PHONY: help secrets up down reset logs test test-sandbox test-unit eval eval-check claims lint psql
 
 ROLES := $(shell sed -n 's/^  \(u_[a-z_]*\):.*/\1/p' data/users.yaml)
 SECRET_KEYS := POSTGRES_PASSWORD APP_WRITER_PASSWORD GOLD_READER_PASSWORD SESSION_SECRET \
@@ -39,6 +39,19 @@ test-sandbox: ## Build the sandbox image and run tests/sandbox on the host, wher
 
 test-unit: ## Run the tests that need no database, on the host
 	uv run pytest -m "not integration"
+
+# The eval runs in the test container, the only place with the embedding models, on the internal network.
+# /src is mounted read-only there, so eval mounts evals/ writable for the report.
+EVAL_RUN = docker compose --profile test run --rm --build -e GIT_COMMIT="$$(git rev-parse HEAD 2>/dev/null)$$(git diff --quiet HEAD 2>/dev/null || echo -dirty)"
+
+eval: secrets ## Run every eval case as its user and write evals/report.json (needs make up)
+	$(EVAL_RUN) -v "$(CURDIR)/evals:/src/evals" test python -m evals.run --write
+
+eval-check: secrets ## Run the evals fresh and compare with the committed evals/report.json
+	$(EVAL_RUN) test python -m evals.run --check
+
+claims: ## Check that the numbers in README.md and docs/ match evals/report.json
+	uv run python tools/recount.py --check
 
 lint: ## Ruff and mypy
 	uv run ruff check .

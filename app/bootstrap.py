@@ -8,6 +8,7 @@ import psycopg
 from psycopg import sql
 from psycopg.rows import TupleRow
 
+from app import replay
 from app.config import DB_DIR
 from app.identity import principals, role_conninfo
 from app.ingest import steps
@@ -74,6 +75,7 @@ STEPS = [
     Step("render_documents", steps.render_documents, once=False),
     Step("render_notes", steps.render_notes, once=False),
     Step("ingest", steps.ingest, once=False),
+    Step("replay", replay.replay, once=True),
 ]
 
 

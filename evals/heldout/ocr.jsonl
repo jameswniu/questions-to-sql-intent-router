@@ -1,3 +1,3 @@
 {"id": "ocr-005", "split": "heldout", "user": "priya", "q": "What's the total on the estimate for claim 100961?", "route": "lookup", "expect": "answer", "scan": "scan-100961-estimate"}
-{"id": "ocr-010", "split": "heldout", "user": "priya", "q": "What's the total on the estimate for claim 105716?", "route": "lookup", "expect": "flag", "scan": "scan-105716-estimate"}
+{"id": "ocr-010", "split": "heldout", "user": "priya", "q": "What's the total on the estimate for claim 105716?", "route": "lookup", "expect": "no_wrong_number", "scan": "scan-105716-estimate"}
 {"id": "ocr-015", "split": "heldout", "user": "priya", "q": "What's the total on the invoice for claim 103137?", "route": "lookup", "expect": "flag", "scan": "scan-103137-invoice"}

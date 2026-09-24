@@ -1,0 +1,45 @@
+name: tests
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  tests:
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Start the stack
+        run: make up
+
+      - name: Test suite, in the test container
+        run: make test
+
+      - uses: astral-sh/setup-uv@v10
+        with:
+          version: "0.12.18"
+          python-version: "3.13"
+
+      - name: Sandbox limits, on the host where Docker is
+        run: make test-sandbox
+
+      - name: Evals match the committed report
+        run: make eval-check
+
+      - name: Upload the eval report
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: eval-report
+          path: evals/report.json
+          if-no-files-found: ignore
+
+      - name: Service logs
+        if: failure()
+        run: docker compose --profile test logs --no-color --timestamps
