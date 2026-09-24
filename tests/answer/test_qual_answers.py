@@ -49,6 +49,24 @@ async def test_a_question_the_documents_do_not_cover_gets_no_answer() -> None:
     assert result.kind == "not_found" and result.text == NOT_FOUND and not result.draft.claims
 
 
+@needs_models
+async def test_a_question_for_a_claims_notes_is_answered_from_that_claims_notes_alone() -> None:
+    question = "What do the adjuster notes say about claim 103670?"
+    for user in ("dana", "priya"):
+        result = await answer_qual(principal_for(user), question)
+        cited = {chunk_id for claim in result.draft.claims for chunk_id in claim.citations}
+        assert result.kind == "answer" and cited
+        assert {(hit.kind, hit.claim_id) for hit in result.hits if hit.chunk_id in cited} == {("note", 103670)}
+    east = await answer_qual(principal_for("omar"), question)
+    assert east.kind == "not_found" and east.text == "I can't find claim 103670." and not east.hits
+
+
+@needs_models
+async def test_a_claim_with_no_notes_gets_no_answer_rather_than_a_guideline_about_notes() -> None:
+    result = await answer_qual(principal_for("priya"), "What do the adjuster notes say about claim 103388?")
+    assert result.kind == "not_found" and result.text == NOT_FOUND and not result.draft.claims
+
+
 async def test_a_date_written_in_the_question_is_the_reading_date() -> None:
     reading = await reading_date(principal_for("dana"), "What deductible applied to a hail loss on June 1, 2024?")
     assert reading == ReadingDate(date(2024, 6, 1), "question", "June 1, 2024")

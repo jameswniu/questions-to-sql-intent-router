@@ -6,7 +6,7 @@ from typing import Any
 
 import pytest
 
-from app.route import route
+from app.route import NOTE_REQUEST, route
 from tests.answer.conftest import dev_cases
 
 QUALITATIVE = dev_cases("qualitative.jsonl")
@@ -32,6 +32,9 @@ def test_every_dev_qualitative_question_is_routed_to_the_documents(case: dict[st
         "How quickly do we send a denial letter?",
         # An operational event is recorded in memos, not in the claims data.
         "When was the payments outage in May 2026?",
+        # Adjuster notes are documents, whichever claims or perils they are about.
+        "What did the adjusters note about hail damage in Colorado?",
+        "Any file notes mentioning a roof replacement?",
     ],
 )
 def test_a_question_about_what_the_documents_say_is_routed_to_them(question: str) -> None:
@@ -45,10 +48,12 @@ def test_a_question_about_what_the_documents_say_is_routed_to_them(question: str
         ("What wind deductible applies to claim 100245?", "qualitative"),
         ("Is the water damage on claim #104512 covered under the HO-2023 form?", "qualitative"),
         ("Which edition applies to claim 103422?", "qualitative"),
-        # Anything else about a claim is its record: status, its policyholder, its notes, its scanned documents.
+        # A claim's notes are documents, so they go to the documents, which keep that claim's notes alone.
+        ("What do the adjuster notes say about claim 103388?", "qualitative"),
+        ("Has anyone noted roof damage on claim #103388?", "qualitative"),
+        # Anything else about a claim is its record: status, its policyholder, its scanned documents.
         ("What's the status of claim 100245?", "lookup"),
         ("Who is the policyholder on claim 100245?", "lookup"),
-        ("What do the adjuster notes say about claim 103388?", "lookup"),
         ("What's the deductible on the proof of loss for claim 103254?", "lookup"),
     ],
 )
@@ -85,3 +90,17 @@ def test_figures_forecasts_and_years_outside_the_data_keep_their_routes(question
 def test_only_a_six_digit_number_reads_as_a_claim(question: str, is_lookup: bool) -> None:
     # Claim ids have six digits, the same rule the lookup itself uses, so a year after "claims" stays a year.
     assert (route(question).route == "lookup") is is_lookup
+
+
+@pytest.mark.parametrize(
+    ("question", "asks"),
+    [
+        ("What do the adjuster notes say about claim 103670?", True),
+        ("What have adjusters noted about ice dams this winter?", True),
+        # Naming the wording or the policy asks what the wording says, so the wording answers, not the notes.
+        ("Is the wind damage noted on claim 100245 covered?", False),
+        ("What is noted in the policy about claim 100245?", False),
+    ],
+)
+def test_only_a_question_for_notes_that_names_no_wording_is_answered_from_notes(question: str, asks: bool) -> None:
+    assert (NOTE_REQUEST.search(question) is not None) is asks

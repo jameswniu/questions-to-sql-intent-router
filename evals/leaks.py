@@ -173,14 +173,14 @@ async def note_sweep(cases: Sequence[Case], users: Sequence[str], secrets: Secre
 def score_permissions(outcomes: Sequence[Outcome], secrets: Secrets) -> dict[str, Any]:
     kinds: Counter[str] = Counter()
     leaked = []
-    own_canary = 0
+    own_notes = 0
     for o in outcomes:
         forbidden = forbidden_for(o.user, secrets)
         for kind, value in sorted(find_leaks(o.logged.sent, o.case["q"], forbidden, secrets)):
             kinds[kind] += 1
             leaked.append(f"{o.case['id']} as {o.user}: {kind} {value}")
         texts = [leaf for event in o.logged.sent for leaf in leaves(event)]
-        own_canary += any(canary(region) in text for region in principal_for(o.user).regions for text in texts)
+        own_notes += any(canary(region) in text for region in principal_for(o.user).regions for text in texts)
     restricted = sorted(f"{o.case['id']} as {o.user}: {o.outcome}" for o in outcomes if over_restricted(o, secrets))
     return {
         "probes": len({o.case["id"] for o in outcomes}),
@@ -191,6 +191,13 @@ def score_permissions(outcomes: Sequence[Outcome], secrets: Secrets) -> dict[str
         "leaked": leaked,
         "over_restricted": len(restricted),
         "over_restricted_runs": restricted,
-        # A positive control: runs that showed the asker a canary from their own region, so the search sees notes.
-        "controls": {"own_canary_runs": own_canary},
+        # The positive control: runs that showed the asker a note from their own region. Without any, a zero count of
+        # leaks would only say that no note was ever shown.
+        "controls": {"own_notes_in_answers": own_notes},
     }
+
+
+def dead_controls(section: dict[str, Any]) -> list[str]:
+    """Each permission control that saw nothing, which leaves its zero leaks proving nothing."""
+    controls = section.get("permissions", {}).get("controls", {})
+    return [f"permissions.controls.{name} is 0" for name, count in sorted(controls.items()) if not count]

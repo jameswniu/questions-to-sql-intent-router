@@ -16,12 +16,12 @@ from app.answer.types import Claim, Draft, Evidence
 from app.config import settings
 from app.identity import Principal
 from app.ingest import embed
+from app.route import NOTE_REQUEST
 from app.semantic.layer import default_layer
 from app.sources.documents import Hit, search
 
 Basis = Literal["given", "question", "claim", "edition", "today"]
 NOT_FOUND = "I couldn't find that in the documents you can see."
-NOTES = re.compile(r"\b(?:notes?|noted|file\s+notes?)\b", re.IGNORECASE)
 KIND_WORDS = {"bulletin": "bulletin", "memo": "memo", "guideline": "guideline", "guidelines": "guideline"}
 # Wide enough that filtering out notes and scans still leaves the candidates to compose from.
 SEARCH_K = 12
@@ -134,6 +134,9 @@ def _topic(question: str, claim: ClaimFacts | None, notes: bool) -> str:
 def _usable(hit: Hit, *, notes: bool, claim_id: int | None) -> bool:
     if hit.quarantined or hit.kind == "scan" or (hit.kind == "note" and not notes):
         return False
+    # Only a claim's own notes answer a question for them. A guideline about writing file notes doesn't.
+    if notes and claim_id is not None:
+        return hit.kind == "note" and hit.claim_id == claim_id
     # A note about another claim would answer a question about this one with the wrong file.
     return claim_id is None or hit.claim_id in (None, claim_id)
 
@@ -165,7 +168,7 @@ async def answer_qual(principal: Principal, question: str, *, on_date: date | No
         return QualResult(kind, refused.text, Draft((), ()), empty, (), reading, claim_id)
     # A claim's own notes are read when the question asks for notes. Otherwise the claim says when, by its loss
     # date, and, when the question doesn't, what and where, by its peril and region.
-    notes = NOTES.search(question) is not None
+    notes = NOTE_REQUEST.search(question) is not None
     topic = _topic(question, claim, notes)
     found = await search(principal, topic, k=SEARCH_K, as_of_date=reading.day)
     hits = [hit for hit in found if _usable(hit, notes=notes, claim_id=claim_id)][:CANDIDATES]

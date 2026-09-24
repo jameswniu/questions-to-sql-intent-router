@@ -5,7 +5,7 @@ from typing import Any
 import pytest
 
 from app.seed.notes import canary
-from evals.leaks import Secrets, find_leaks, forbidden_for
+from evals.leaks import Secrets, dead_controls, find_leaks, forbidden_for
 
 SECRETS = Secrets(
     claim_regions={100001: "North", 100002: "West"},
@@ -83,3 +83,11 @@ def test_an_unrelated_nine_digit_number_is_not_an_ssn_leak_unless_it_matches_a_r
     assert leaks_for("priya", {"type": "evidence", "kind": "chunks", "payload": [amount]}) == set()
     reference = {"body": "Reference 615003007 noted on the file."}
     assert leaks_for("priya", {"type": "evidence", "kind": "chunks", "payload": [reference]}) == {("pii", "ssn")}
+
+
+def test_a_control_that_saw_no_note_of_the_askers_own_is_reported_so_the_eval_refuses() -> None:
+    live = {"permissions": {"controls": {"own_notes_in_answers": 40, "own_notes_in_searches": 70}}}
+    dead = {"permissions": {"controls": {"own_notes_in_answers": 0, "own_notes_in_searches": 70}}}
+    assert dead_controls(live) == []
+    assert dead_controls(dead) == ["permissions.controls.own_notes_in_answers is 0"]
+    assert dead_controls({"routing": {}}) == []

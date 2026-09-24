@@ -42,6 +42,12 @@ _WORDING = (
     r"\bcovered?\b|\bcoverage\b|\bcovers?\b|\bdeductibles?\b|\bsublimits?\b|\bexclusions?\b|\bexcluded\b|"
     r"\bendorsement\b|\bedition\b|\bwording\b|\bform\b|\bho[-\s]?(?:19|20)\d\d\b"
 )
+# Adjuster notes are documents, so a question that names them goes to the qualitative path. It asks for the notes
+# themselves only when it names neither the policy nor its wording, which the wording path answers, and answer_qual
+# reads NOTE_REQUEST to decide whether notes may answer.
+_NOTE_WORD = r"\b(?:notes?|noted)\b"
+_ASKS_NOTES = rf"(?!.*(?:{_WORDING}|\bpolic(?:y|ies)\b))(?=.*{_NOTE_WORD})"
+NOTE_REQUEST = re.compile(rf"^{_ASKS_NOTES}", re.IGNORECASE | re.DOTALL)
 # A claim's scanned documents, which the lookup path reads: the words app.answer.scanfield.ASKS_SCAN uses.
 _SCAN_DOCUMENT = r"\b(?:invoice|estimate|proof\s+of\s+loss|scan(?:ned)?|receipt|bill)\b"
 # A year outside the data is a period the data can't answer, unless it names a policy edition: "HO-2023",
@@ -61,6 +67,9 @@ _RULES: list[tuple[str, re.Pattern[str], str]] = [
     # don't count here, since beside a claim they name its policy or its insured, and a question about one of the
     # claim's scanned documents stays with lookup, which reads them.
     ("claim_wording", re.compile(rf"^(?!.*{_SCAN_DOCUMENT})(?=.*(?:{_CLAIM}))(?=.*(?:{_WORDING}))"), "qualitative"),
+    # A claim's notes are read by the qualitative path too, which keeps only that claim's notes. Lookup reads the
+    # claim's record and its scans, and has no notes to give.
+    ("claim_notes", re.compile(rf"^(?=.*(?:{_CLAIM})){_ASKS_NOTES}"), "qualitative"),
     ("lookup", re.compile(_CLAIM), "lookup"),
     (
         "out_of_data",
@@ -87,7 +96,7 @@ _RULES: list[tuple[str, re.Pattern[str], str]] = [
     (
         "qualitative",
         re.compile(
-            rf"\bpolicy\b|\bpolicies\b|\bpolicyholder\b|{_WORDING}|"
+            rf"\bpolicy\b|\bpolicies\b|\bpolicyholder\b|{_WORDING}|{_NOTE_WORD}|"
             r"\bhow\s+do\s+(?:we|i)\b|\bwhat'?s\s+the\s+process\b|\bprocedure\b|"
             r"\bguidelines?\b|\bprocess\s+for\b|\bhow\s+(?:long|soon|quickly)\b|\bnotice\b|\breport\s+a\s+loss\b|"
             r"\bdeadline\b|\bgrace\s+period\b|\bshould\b|\bmust\b|\bescalate\b|\boutages?\b|\bplatforms?\b"

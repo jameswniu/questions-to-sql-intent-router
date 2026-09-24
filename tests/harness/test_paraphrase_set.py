@@ -20,7 +20,7 @@ def test_every_source_the_set_was_built_from_has_exactly_its_three_variants_and_
     eligible = {o.id for o in paraphrase.load_originals()}
     covered = sorted({row["of"] for row in rows})
 
-    # route-035 and route-036 were added to routing.jsonl after this set was generated: load_originals()
+    # route-035 to route-038 were added to routing.jsonl after this set was generated: load_originals()
     # counts them as eligible dev routing sources today, but they were never sent to Codex. So this test
     # pins the expected source list to what the committed file was actually built from, its own "of" ids,
     # rather than to today's live eligibility list; that is the only list a coverage check can verify

@@ -18,7 +18,7 @@ from app.sandbox.client import Sandbox
 from evals import report
 from evals.answers import score_answers, score_why
 from evals.guards import score_hostile, score_verifier
-from evals.leaks import load_secrets, note_sweep, score_permissions
+from evals.leaks import dead_controls, load_secrets, note_sweep, score_permissions
 from evals.ocr import Stored, score_extraction, score_ocr_answers, stored_fields
 from evals.outcome import Outcome, run_case
 from evals.retrieval import score_retrieval
@@ -96,7 +96,7 @@ async def evaluate(split: Split, stored: Stored) -> dict[str, Any]:
         probes = [await run_case(case, user) for case in load(split, "permissions") for user in users]
         section["permissions"] = score_permissions(probes, secrets)
         section["permissions"]["search"], own_hits = await note_sweep(load(split, "permissions"), users, secrets)
-        section["permissions"]["controls"]["own_canary_hits"] = own_hits
+        section["permissions"]["controls"]["own_notes_in_searches"] = own_hits
         variants = await run_all(load(split, "paraphrase"))
         executed = {o.case["id"]: v.right for o, v in zip(quant, sql_verdicts, strict=True)}
         routed = {o.case["id"]: o.label == o.case["route"] for o in routing + quant}
@@ -147,6 +147,9 @@ def main(argv: list[str] | None = None) -> int:
     splits: list[Split] = list(SPLITS) if args.split == "all" else [args.split]
     fresh = asyncio.run(collect(splits))
     print(report.summary(fresh))
+    if dead := [problem for split in splits for problem in dead_controls(fresh[split])]:
+        print("refusing to report zero leaks that no control backs: " + ", ".join(dead), file=sys.stderr)
+        return 1
     if args.write:
         report.REPORT.write_text(report.dump(report.read() | fresh))
         print(f"wrote {report.REPORT.relative_to(ROOT)}")

@@ -34,3 +34,5 @@
 {"id": "route-034", "split": "dev", "user": "priya", "q": "What does the system of record show for claim 100245?", "route": "lookup", "expect": "answer", "refusal_reason": null}
 {"id": "route-035", "split": "dev", "user": "priya", "q": "Show me paid losses from all regions in 2025.", "route": "quantitative", "expect": "answer", "refusal_reason": null}
 {"id": "route-036", "split": "dev", "user": "dana", "q": "How many claims did we get from every region last quarter?", "route": "quantitative", "expect": "answer", "refusal_reason": null}
+{"id": "route-037", "split": "dev", "user": "dana", "q": "Summarize the file notes on claim 103670", "route": "qualitative", "expect": "answer", "refusal_reason": null}
+{"id": "route-038", "split": "dev", "user": "june", "q": "What have adjusters noted about ice dams this winter?", "route": "qualitative", "expect": "answer", "refusal_reason": null}
