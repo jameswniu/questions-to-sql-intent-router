@@ -107,6 +107,8 @@ services:
     environment:
       <<: *db-env
       PYTEST_ADDOPTS: "-p no:cacheprovider"
+      # Integration tests fail rather than skip here when the database or a password is missing.
+      REQUIRE_DATABASE: "1"
     volumes:
       - ./:/src:ro
     working_dir: /src
