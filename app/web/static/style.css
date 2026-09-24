@@ -154,11 +154,11 @@ button.secondary, button.primary.stop { background: var(--paper); color: var(--a
 .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; margin: 16px 0; }
 .tile { background: var(--panel); border: 1px solid var(--hairline); border-radius: 6px; padding: 10px 14px; }
 .tile-value { display: block; font-size: 1.4rem; font-weight: 600; }
-.tile-label { display: block; font-size: 0.85rem; color: var(--muted); }
+.tile-label { display: block; font-size: 1rem; color: var(--muted); }
 .panel { border: 1px solid var(--hairline); border-radius: 6px; padding: 14px 16px; margin: 0 0 16px; overflow-x: auto; }
 .panel > p { margin: 0 0 0.75rem; }
 .panel.empty { background: var(--panel); }
-svg.chart { display: block; max-width: 100%; height: auto; margin: 0 0 12px; }
+svg.chart { display: block; width: 100%; height: auto; margin: 0 0 12px; }
 table.metrics th .sub { display: block; font-weight: 400; color: var(--muted); font-size: 0.75rem; }
 
 @media (max-width: 640px) {

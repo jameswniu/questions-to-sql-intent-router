@@ -15,13 +15,14 @@ GOOD = "#1a7f37"
 REFUSAL = "#a8433f"
 FONT = "system-ui, -apple-system, Segoe UI, Helvetica, Arial, sans-serif"
 
-# The dashboard is read at 100 percent zoom, so nothing is set smaller than this.
+# Charts are drawn WIDTH units wide and stretched to fill their panel, about 800 px on a desktop, so text set at
+# this floor shows at about 17 px, the size of the page's own text. Nothing is set smaller.
 MIN_FONT = 14
 # Estimated glyph width as a share of the font size, for a system sans-serif.
 CHAR_WIDTH = 0.58
 BOLD_CHAR_WIDTH = 0.62
 
-WIDTH = 820
+WIDTH = 640
 LABEL_W = 210
 VALUE_W = 100
 TITLE_H = 36
