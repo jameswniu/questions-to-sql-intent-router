@@ -10,6 +10,7 @@ from psycopg.rows import TupleRow
 
 from app.config import DB_DIR
 from app.identity import principals, role_conninfo
+from app.ingest import steps
 from app.seed import rows
 
 log = logging.getLogger("bootstrap")
@@ -70,6 +71,9 @@ STEPS = [
     Step("principals", sync_principals, once=False),
     Step("passwords", set_passwords, once=False),
     Step("seed", seed_rows, once=True),
+    Step("render_documents", steps.render_documents, once=False),
+    Step("render_notes", steps.render_notes, once=False),
+    Step("ingest", steps.ingest, once=False),
 ]
 
 

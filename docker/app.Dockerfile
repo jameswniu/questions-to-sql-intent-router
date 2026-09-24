@@ -64,6 +64,7 @@ WORKDIR /srv
 COPY app ./app
 COPY data ./data
 COPY db ./db
+COPY semantic ./semantic
 
 FROM app-base AS test
 COPY --from=deps-dev /opt/venv /opt/venv

@@ -75,7 +75,8 @@ def superuser(login: Callable[..., Connection]) -> Connection:
     return login("postgres")
 
 
-@pytest.fixture(scope="session", autouse=True)
+@pytest.fixture(scope="module", autouse=True)
 async def _close_pools() -> AsyncIterator[None]:
+    # Per module, because each login role has a connection limit and the next module may log in as it directly.
     yield
     await db.close_all()

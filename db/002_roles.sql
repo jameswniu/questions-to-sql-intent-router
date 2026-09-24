@@ -8,12 +8,12 @@ CREATE ROLE chat_analyst NOLOGIN;
  One login role per job and region, named in data/users.yaml. SET FALSE keeps a member from
  assuming the group itself, and bootstrap sets each password from var/secrets.env.
 */
-CREATE ROLE u_adj_north LOGIN CONNECTION LIMIT 4;
-CREATE ROLE u_adj_south LOGIN CONNECTION LIMIT 4;
-CREATE ROLE u_adj_east LOGIN CONNECTION LIMIT 4;
-CREATE ROLE u_adj_west LOGIN CONNECTION LIMIT 4;
-CREATE ROLE u_supervisor LOGIN CONNECTION LIMIT 4;
-CREATE ROLE u_analyst LOGIN CONNECTION LIMIT 4;
+CREATE ROLE u_adj_north LOGIN CONNECTION LIMIT 10;
+CREATE ROLE u_adj_south LOGIN CONNECTION LIMIT 10;
+CREATE ROLE u_adj_east LOGIN CONNECTION LIMIT 10;
+CREATE ROLE u_adj_west LOGIN CONNECTION LIMIT 10;
+CREATE ROLE u_supervisor LOGIN CONNECTION LIMIT 10;
+CREATE ROLE u_analyst LOGIN CONNECTION LIMIT 10;
 
 GRANT chat_adjuster TO u_adj_north, u_adj_south, u_adj_east, u_adj_west WITH INHERIT TRUE, SET FALSE;
 GRANT chat_supervisor TO u_supervisor WITH INHERIT TRUE, SET FALSE;
