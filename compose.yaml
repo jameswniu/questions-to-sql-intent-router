@@ -1,0 +1,116 @@
+name: claims-qa
+
+x-app-build: &app-build
+  context: .
+  dockerfile: docker/app.Dockerfile
+  target: runtime
+
+x-db-env: &db-env
+  PGHOST: db
+  PGPORT: "5432"
+
+services:
+  db:
+    image: pgvector/pgvector:0.8.6-pg17-trixie@sha256:724a4041afdb1750446e3f6b5cfa8f3b0ac5a2cf538ddfa6bfee4f94c2fa85c6
+    env_file: var/secrets.env
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_DB: claims
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    # Docker publishes no ports from a container whose only networks are internal, so db alone
+    # also joins db-host. Nothing else is attached to it.
+    networks: [backend, db-host]
+    ports:
+      - "127.0.0.1:55432:5432"
+    healthcheck:
+      # Over TCP, so the check stays red while the entrypoint's socket-only init server is up.
+      test: ["CMD-SHELL", "pg_isready -U postgres -h 127.0.0.1"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  init:
+    build: *app-build
+    image: claims-qa-app:0.2.0
+    command: ["python", "-m", "app.bootstrap"]
+    depends_on:
+      db: {condition: service_healthy}
+    env_file: var/secrets.env
+    environment: *db-env
+    networks: [backend]
+    restart: "no"
+
+  app:
+    build: *app-build
+    image: claims-qa-app:0.2.0
+    command: ["uvicorn", "app.web.app:app", "--host", "0.0.0.0", "--port", "8000"]
+    depends_on:
+      init: {condition: service_completed_successfully}
+      sandboxd: {condition: service_healthy}
+    env_file:
+      - path: var/secrets.env
+      - path: .env
+        required: false
+    environment:
+      <<: *db-env
+      SANDBOXD_URL: http://sandboxd:8700
+    ports:
+      - "127.0.0.1:${APP_PORT:-8000}:8000"
+    networks: [backend, frontend]
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/healthz')"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  sandboxd:
+    build:
+      context: .
+      dockerfile: docker/sandboxd.Dockerfile
+    image: claims-qa-sandboxd:1
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    environment:
+      SANDBOX_IMAGE: claims-qa-sandbox:1
+    networks: [backend]
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8700/healthz')"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  sandbox:
+    profiles: [sandbox-image]
+    build:
+      context: .
+      dockerfile: docker/sandbox.Dockerfile
+    image: claims-qa-sandbox:1
+
+  test:
+    profiles: [test]
+    build:
+      <<: *app-build
+      target: test
+    image: claims-qa-test:0.2.0
+    command: ["pytest", "-q"]
+    depends_on:
+      db: {condition: service_healthy}
+      init: {condition: service_completed_successfully}
+    env_file: var/secrets.env
+    environment:
+      <<: *db-env
+      PYTEST_ADDOPTS: "-p no:cacheprovider"
+    volumes:
+      - ./:/src:ro
+    working_dir: /src
+    networks: [backend]
+
+networks:
+  backend:
+    internal: true
+  frontend: {}
+  db-host: {}
+
+volumes:
+  pgdata: {}

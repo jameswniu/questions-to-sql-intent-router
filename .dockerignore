@@ -1,0 +1,12 @@
+.git
+.env
+var
+.venv
+**/__pycache__
+**/*.py[cod]
+.pytest_cache
+.mypy_cache
+.ruff_cache
+.drill
+.scrub-terms
+tools/.recordings

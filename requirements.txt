@@ -1,9 +1,0 @@
-# Phase 1 runs offline. The embedding model (all-MiniLM-L6-v2, about 90 MB)
-# downloads once on first run and is cached after that.
-#
-# Versions are the ones this was run against, not the minimum that might work.
-fastapi>=0.110
-uvicorn>=0.29
-numpy>=1.26
-faiss-cpu>=1.8
-sentence-transformers>=3.0

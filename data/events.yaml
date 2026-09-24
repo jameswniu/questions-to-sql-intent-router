@@ -1,0 +1,36 @@
+# Planted events. The row generator applies them and the document generator writes the
+# memo or bulletin that explains each one, so every "why" question has a findable answer.
+events:
+  - id: pipe-freeze-2025-01
+    kind: catastrophe
+    region: North
+    peril: water
+    loss_dates: [2025-01-20, 2025-01-24]
+    extra_claims: 260
+    doc: {kind: bulletin, ref: CAT-25-02, title: "Freeze event, Upper Midwest, January 2025"}
+  - id: deductible-edition-2025
+    kind: policy_change
+    regions: [West, South]
+    effective: 2025-01-01
+    doc: {kind: memo, ref: UW-25-01, title: "HO-2025 edition: percentage wind and hail deductible"}
+  - id: hail-front-range-2025
+    kind: catastrophe
+    region: West
+    state: CO
+    peril: hail
+    loss_dates: [2025-04-12, 2025-04-13]
+    extra_claims: 420
+    doc: {kind: bulletin, ref: CAT-25-07, title: "Hail, Colorado Front Range, April 12 to 13, 2025"}
+  - id: roofing-surge-2025q3
+    kind: cost_shift
+    region: West
+    state: CO
+    perils: [hail, wind]
+    closed_between: [2025-07-01, 2025-09-30]
+    severity_multiplier: 1.22
+    doc: {kind: memo, ref: CL-25-14, title: "Roofing labor and material costs, Denver metro, third quarter 2025"}
+  - id: payments-outage-2026-05
+    kind: operations
+    window: [2026-05-11, 2026-05-22]
+    reissue_between: [2026-05-26, 2026-06-05]
+    doc: {kind: memo, ref: OPS-26-03, title: "Payments platform outage, May 11 to 22, 2026"}
