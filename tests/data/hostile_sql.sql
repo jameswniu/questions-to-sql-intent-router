@@ -1,6 +1,7 @@
--- Statements that check() must reject. Split on a line that is exactly '-- next' minus the quotes.
--- Each is either not a single read-only SELECT, names a relation off the allow-list,
--- calls a blocked or unknown function, or fails to parse. None should reach the database.
+-- Statements that check() must reject, split on each line that holds only two dashes, a space and next.
+-- Each is either not a single read-only SELECT, names a relation off the allow-list or one no CTE in
+-- scope covers, names a type off the allow-list, uses WITH RECURSIVE, calls a function off the
+-- allow-list, or fails to parse. None should reach the database.
 
 INSERT INTO core.claims (claim_id) VALUES (1)
 -- next
@@ -119,3 +120,69 @@ SELECT query_to_xml('SELECT ssn FROM core.policyholders', true, false, '')
 SELECT ctid, xmin FROM sem.v_claims
 -- next
 VALUES (1), (2)
+-- next
+SELECT 'pg_authid'::regclass
+-- next
+SELECT CAST('pg_sleep' AS regproc)
+-- next
+SELECT TRY_CAST('u_supervisor' AS regrole)
+-- next
+SELECT regclass 'pg_shadow'
+-- next
+SELECT 'pg_catalog'::regnamespace::oid
+-- next
+SELECT claim_id::oid::regclass FROM sem.v_claims
+-- next
+SELECT 'pg_authid'::pg_catalog.regclass
+-- next
+SELECT '{pg_authid,pg_shadow}'::regclass[]
+-- next
+SELECT '<x/>'::xml
+-- next
+SELECT '{"a": 1}'::jsonb
+-- next
+WITH RECURSIVE r(n) AS (SELECT 1 UNION ALL SELECT n + 1 FROM r WHERE n < 100000) SELECT count(*) FROM r
+-- next
+SELECT n FROM (WITH RECURSIVE r(n) AS (SELECT 1 UNION ALL SELECT n + 1 FROM r) SELECT n FROM r LIMIT 5) AS s
+-- next
+SELECT r.rolname FROM (WITH pg_roles AS (SELECT 1 AS x) SELECT x FROM pg_roles) AS s CROSS JOIN pg_roles AS r
+-- next
+SELECT rolname FROM pg_roles WHERE EXISTS (WITH pg_roles AS (SELECT 1) SELECT 1 FROM pg_roles)
+-- next
+WITH a AS (SELECT rolname FROM pg_roles), pg_roles AS (SELECT 1 AS rolname) SELECT rolname FROM a
+-- next
+WITH pg_roles AS (SELECT rolname FROM pg_roles) SELECT rolname FROM pg_roles
+-- next
+WITH "PG_ROLES" AS (SELECT 1 AS rolname) SELECT rolname FROM pg_roles
+-- next
+SELECT claim_id FROM (WITH v_claims AS (SELECT ssn AS claim_id FROM core.policyholders) SELECT claim_id FROM v_claims) AS s
+-- next
+WITH pg_locKs AS (SELECT 1 AS x) SELECT * FROM pg_locks
+-- next
+SELECT PARSE_JSON('{"x": 1}') AS j
+-- next
+SELECT JSON_OBJECT('k' VALUE region RETURNING jsonb) FROM sem.v_claims
+-- next
+SELECT JSON_OBJECT('k' VALUE region RETURNING regclass) FROM sem.v_claims
+-- next
+SELECT version()
+-- next
+SELECT current_user
+-- next
+SELECT session_user
+-- next
+SELECT md5(claim_id::text) FROM sem.v_claims
+-- next
+SELECT string_agg(claim_id::text, ',') FROM sem.v_claims
+-- next
+SELECT count(*) FROM generate_series(1, 100000) AS g
+-- next
+SELECT xmlelement(NAME claim, claim_id) FROM sem.v_claims
+-- next
+SELECT json_object('claim' VALUE claim_id) FROM sem.v_claims
+-- next
+SELECT u FROM unnest(ARRAY[1, 2, 3]) AS u
+-- next
+SELECT * FROM pg_read_file('/etc/passwd') AS f
+-- next
+WITH s AS (SELECT pg_sleep(10) AS x) SELECT x FROM s
