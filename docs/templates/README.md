@@ -17,7 +17,7 @@ git switch rag-rebuild
 make up
 ```
 
-The first run builds the images, seeds 6,951 claims and reads 60 scanned forms, which takes about BUILD_MINUTES minutes. After that, `make up` is back in under a minute. Open http://127.0.0.1:8000, pick someone from the user list and ask. If something else already holds port 8000, `APP_PORT=18000 make up` moves the app to 18000. There's no API key to set, and the network is only needed the first time, for the images and two small models.
+The first run builds the images, seeds 6,951 claims and reads 60 scanned forms. That took 2 minutes on a GitHub arm runner, and takes longer on a slow connection. After that, `make up` is back in under a minute. Open http://127.0.0.1:8000, pick someone from the user list and ask. If something else already holds port 8000, `APP_PORT=18000 make up` moves the app to 18000. There's no API key to set, and the network is only needed the first time, for the images and two small models.
 
 `make test` runs the tests inside the stack. `make eval` re-scores the eval numbers on this page, and CI fails when the page and the scores disagree.
 
@@ -31,7 +31,7 @@ The first run builds the images, seeds 6,951 claims and reads 60 scanned forms, 
 
 The gate turns away injection attempts, coding requests, chit-chat and common off-topic subjects. Keyword rules then pick a path, and a question none of them places gets a list of what the app can answer. Figure questions go through a semantic layer that turns the question into a typed query and compiles it to SQL over three views. Questions about the documents go to search over the policy wordings, guidelines, memos and adjuster notes. "Why did this change" questions split the change by driver in a sandbox, then find the memo or bulletin from that period. Before anything reaches the screen, a verifier checks every figure against the query results and every citation against what was retrieved for this user, and cuts any sentence that fails. The evidence panel shows the SQL, rows and passages behind each answer.
 
-None of that needs a language model. The only models are a small embedder and a reranker that ship inside the image. Live mode, switched on with `LLM_BACKEND`, adds Claude where no rule matches. It places questions the keyword rules can't, reads figure questions the extractor can't parse, and writes prose from passages. No model gets both tools and document text, so an instruction hidden in a note has no tool to reach.
+None of that needs a language model. The only models are a small embedder and a reranker that ship inside the image. Live mode, switched on with `LLM_BACKEND`, adds Claude. It places questions the keyword rules can't, reads figure questions the extractor can't parse, writes document answers from their passages, and runs why questions with an orchestrator and three helpers. No model gets both tools and document text, so an instruction hidden in a note has no tool to reach.
 
 ## What could go wrong, and what stops it
 

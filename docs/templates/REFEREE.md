@@ -4,7 +4,7 @@ A referee card says how one number on the README is counted, where its data came
 
 ## Mismatches
 
-- Run it says the first build takes about BUILD_MINUTES minutes. No script or report produces that number, and `tools/recount.py` prints the word as it stands, so it is UNTRACEABLE.
+- Run it says the first build took 2 minutes on a GitHub arm runner. That is the Start the stack step of the tests workflow in run 36018165796, read by hand, and no script measures it again.
 
 ## 6,951 claims seeded
 
