@@ -5,15 +5,29 @@ from dataclasses import dataclass
 from html import escape
 
 PAPER = "#ffffff"
-PANEL = "#f6f8fa"
-HAIRLINE = "#d0d7de"
-INK = "#1f2328"
-MUTED = "#57606a"
-ACCENT = "#345c8f"
-ACCENT_LIGHT = "#8ea7c7"
-GOOD = "#1a7f37"
-REFUSAL = "#a8433f"
-FONT = "system-ui, -apple-system, Segoe UI, Helvetica, Arial, sans-serif"
+PANEL = "#f1f3f6"
+HAIRLINE = "#e6e9ee"
+AXIS = "#b8bec8"
+INK = "#15181d"
+MUTED = "#5d6574"
+ACCENT = "#3b5bdb"
+ACCENT_LIGHT = "#788ee4"
+GOOD = "#23875a"
+REFUSAL = "#d1453d"
+NEUTRAL = "#858d9c"
+FONT = "system-ui, -apple-system, Segoe UI, Roboto, Helvetica Neue, Arial, sans-serif"
+
+# Each mark also carries a class, which the page's stylesheet maps to the same role in its light or dark theme.
+# The attributes keep the light colours, so a chart seen outside the page still draws the same.
+TEXT_CLASSES = {INK: "c-ink", MUTED: "c-muted"}
+BAR_CLASSES = {
+    ACCENT: "c-accent",
+    ACCENT_LIGHT: "c-accent-light",
+    GOOD: "c-good",
+    REFUSAL: "c-refusal",
+    NEUTRAL: "c-neutral",
+    MUTED: "c-neutral",
+}
 
 # Charts are drawn WIDTH units wide and stretched to fill their panel, about 800 px on a desktop, so text set at
 # this floor shows at about 17 px, the size of the page's own text. Nothing is set smaller.
@@ -95,8 +109,10 @@ def _text(
     weight = ' font-weight="600"' if bold else ""
     # A paper-coloured outline drawn under the glyphs keeps a value readable where it crosses a gridline.
     outline = f' stroke="{PAPER}" stroke-width="4" paint-order="stroke"' if halo else ""
+    names = " ".join(name for name in (TEXT_CLASSES.get(fill), "c-halo" if halo else None) if name)
+    role = f' class="{names}"' if names else ""
     return (
-        f'<text x="{x:.1f}" y="{y:.1f}" font-size="{size}" text-anchor="{anchor}" fill="{fill}"{weight}{outline}>'
+        f'<text{role} x="{x:.1f}" y="{y:.1f}" font-size="{size}" text-anchor="{anchor}" fill="{fill}"{weight}{outline}>'
         f"{escape(text)}</text>"
     )
 
@@ -122,10 +138,12 @@ def hbar(
     y0 = TITLE_H + (BUDGET_H if budget else 0)
     y_end = y0 + ROW_H * len(bars)
     spacing = (x1 - x0) / max(len(ticks) - 1, 1)
-    parts = [_text(0, 22, title, size=16, box=width, bold=True)]
+    parts = [_text(0, 22, title, size=15, box=width, bold=True)]
     for tick in ticks:
         x = at(tick)
-        parts.append(f'<line x1="{x:.1f}" y1="{y0 - 4}" x2="{x:.1f}" y2="{y_end}" stroke="{HAIRLINE}"/>')
+        # The zero line is the axis the bars grow from, so it is drawn a step darker than the gridlines.
+        role, stroke = ("c-axis", AXIS) if tick == 0 else ("c-grid", HAIRLINE)
+        parts.append(f'<line class="{role}" x1="{x:.1f}" y1="{y0 - 4}" x2="{x:.1f}" y2="{y_end}" stroke="{stroke}"/>')
         label = (tick_format or value_format)(tick)
         parts.append(_text(x, y_end + 22, label, size=14, box=spacing, anchor="middle", fill=MUTED))
     for index, bar in enumerate(bars):
@@ -134,16 +152,18 @@ def hbar(
         parts.append(_text(x0 - 12, middle + 5, label, size=15, box=x0 - 12, anchor="end"))
         end = at(bar.value)
         if bar.value > 0:
+            series = BAR_CLASSES.get(bar.color)
+            role = f' class="{series}"' if series else ""
             parts.append(
-                f'<rect x="{x0}" y="{middle - BAR_H / 2:.1f}" width="{max(end - x0, 1.0):.1f}" height="{BAR_H}" '
-                f'rx="2" fill="{bar.color}"/>'
+                f'<rect{role} x="{x0}" y="{middle - BAR_H / 2:.1f}" width="{max(end - x0, 1.0):.1f}" height="{BAR_H}" '
+                f'rx="3" fill="{bar.color}"/>'
             )
         parts.append(_text(end + 8, middle + 5, value_format(bar.value), size=14, box=width - end - 8, halo=True))
     if budget is not None:
         x = at(budget.value)
         parts.append(
-            f'<line x1="{x:.1f}" y1="{y0 - 8}" x2="{x:.1f}" y2="{y_end}" stroke="{INK}" stroke-width="1.5" '
-            'stroke-dasharray="5 4"/>'
+            f'<line class="c-budget" x1="{x:.1f}" y1="{y0 - 8}" x2="{x:.1f}" y2="{y_end}" stroke="{INK}" '
+            'stroke-width="1.5" stroke-dasharray="5 4"/>'
         )
         half = text_width(budget.label, 14) / 2
         centre = min(max(x, x0 + half), width - half)

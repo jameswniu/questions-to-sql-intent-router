@@ -3,6 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
   <title>Dashboard, Claims Q&amp;A</title>
   <link rel="stylesheet" href="/static/style.css">
 </head>
@@ -29,7 +30,7 @@
     {% else %}
     <div class="tiles">
       {% for label, value in tiles %}
-      <div class="tile"><span class="tile-value">{{ value }}</span><span class="tile-label">{{ label }}</span></div>
+      <div class="tile"><span class="tile-label">{{ label }}</span><span class="tile-value">{{ value }}</span></div>
       {% endfor %}
     </div>
 

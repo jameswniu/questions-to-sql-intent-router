@@ -10,7 +10,7 @@ from markupsafe import Markup
 
 from app import db
 from app.semantic.layer import LAYER_PATH
-from app.web.charts import ACCENT, ACCENT_LIGHT, GOOD, MUTED, REFUSAL, Bar, Budget, hbar
+from app.web.charts import ACCENT, ACCENT_LIGHT, GOOD, NEUTRAL, REFUSAL, Bar, Budget, hbar
 
 WINDOW_DAYS = 30
 SOURCES = {"ui": "UI", "eval": "Eval", "replay": "Replay"}
@@ -238,7 +238,7 @@ def _outcome_bars(outcomes: Sequence[OutcomeCount]) -> list[Bar]:
             bars.append(Bar(f"Refused, {(o.refusal_reason or 'no reason').replace('_', ' ')}", o.requests, REFUSAL))
             continue
         name = o.outcome or "unknown"
-        color = GOOD if name == ANSWERED else MUTED if name in NOT_SERVED else ACCENT
+        color = GOOD if name == ANSWERED else NEUTRAL if name in NOT_SERVED else ACCENT
         bars.append(Bar(OUTCOMES.get(name, name.replace("_", " ").capitalize()), o.requests, color))
     return bars
 
