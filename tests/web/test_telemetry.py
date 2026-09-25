@@ -102,6 +102,31 @@ def test_a_model_without_a_price_leaves_the_cost_unknown(spans: InMemorySpanExpo
     assert record.cost_usd is None
 
 
+def test_a_dated_model_id_prices_from_its_undated_name(spans: InMemorySpanExporter) -> None:
+    trace = RequestTrace(principal_for("omar"), "Why?", source="eval", mode="anthropic")
+
+    def call_model() -> None:
+        with telemetry.model_call("claude-haiku-4-5") as call:
+            call.record_usage(1000, 200, response_model="claude-haiku-4-5-20251001")
+
+    trace.run_context().run(call_model)
+    record = trace.finish()
+    # 1,000 input at $1 and 200 output at $5, per million tokens.
+    assert record.cost_usd == Decimal("0.002000")
+
+
+def test_a_dated_but_otherwise_unpriced_model_still_leaves_the_cost_unknown(spans: InMemorySpanExporter) -> None:
+    trace = RequestTrace(principal_for("omar"), "Why?", source="replay", mode="anthropic")
+
+    def call_model() -> None:
+        with telemetry.model_call("some-unpriced-model") as call:
+            call.record_usage(10, 10, response_model="some-unpriced-model-20251001")
+
+    trace.run_context().run(call_model)
+    record = trace.finish()
+    assert record.cost_usd is None
+
+
 def test_no_model_calls_cost_exactly_zero(spans: InMemorySpanExporter) -> None:
     record = RequestTrace(principal_for("sam"), "How many claims?", source="ui", mode="none").finish()
     assert (record.tokens_in, record.tokens_out, record.cost_usd) == (0, 0, Decimal("0.000000"))

@@ -147,6 +147,13 @@ async def test_the_anthropic_backend_normalizes_text_citations_usage_and_the_tur
     )
 
 
+def test_cost_prices_a_dated_model_id_from_its_undated_name() -> None:
+    usage = client.Usage(input_tokens=1000, output_tokens=200)
+    # Haiku lists at $1 in and $5 out, per million tokens.
+    assert client.cost("claude-haiku-4-5-20251001", usage) == Decimal("0.002")
+    assert client.cost("some-unpriced-model-20251001", usage) is None
+
+
 async def test_the_vertex_backend_calls_the_model_in_the_project_and_region() -> None:
     urls: list[str] = []
 

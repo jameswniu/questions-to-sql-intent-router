@@ -1,4 +1,5 @@
 import os
+import re
 import threading
 from collections import OrderedDict
 from collections.abc import Iterator, Mapping
@@ -51,6 +52,8 @@ PRICES = {
     "gemini-3.5-flash": (Decimal("1.50"), Decimal("9.00"), Decimal("0.15")),
 }
 CACHE_WRITE_RATE = Decimal("1.25")
+# A dated snapshot id, such as claude-haiku-4-5-20251001, prices as its undated name.
+DATED_SUFFIX = re.compile(r"-\d{8}$")
 
 
 @dataclass
@@ -80,6 +83,8 @@ class Usage:
             self.templates[str(template)] = str(digest)
         model = str(attrs.get(RESPONSE_MODEL) or attrs.get(REQUEST_MODEL) or "").partition("@")[0]
         price = PRICES.get(model)
+        if price is None:
+            price = PRICES.get(DATED_SUFFIX.sub("", model))
         if price is None or self.cost_usd is None:
             self.cost_usd = None
             return

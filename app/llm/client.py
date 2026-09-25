@@ -132,7 +132,10 @@ class LLM(Protocol):
 
 
 def cost(model: str, usage: Usage) -> Decimal | None:
-    price = telemetry.PRICES.get(model.partition("@")[0])
+    name = model.partition("@")[0]
+    price = telemetry.PRICES.get(name)
+    if price is None:
+        price = telemetry.PRICES.get(telemetry.DATED_SUFFIX.sub("", name))
     if price is None:
         return None
     rate_in, rate_out, rate_read = price

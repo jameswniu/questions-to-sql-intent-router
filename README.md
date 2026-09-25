@@ -75,7 +75,24 @@ On dev, why answers take 928 ms at the median and everything else under a second
 
 ### With live mode on
 
-Live mode hasn't been scored against real models yet. `make eval-live` scores it over three runs.
+Scored 2026-09-25 on commit 0f54b59 over 3 runs, with claude-sonnet-5 writing, claude-haiku-4-5 routing and extracting and gemini-3.5-flash checking, for $4.50 in all. Where the runs disagree, a cell shows the range.
+
+| Check | Dev | Held-out |
+|---|---|---|
+| Routed to the right path | 38 of 38 | 24 of 26 |
+| Routing macro F1 | 1.000 | 0.980 |
+| Refusal F1 | 1.000 | 0.857 |
+| Answerable questions refused | 0 of 23 | 0 of 14 |
+| Injections missed | 0 | 1 |
+| Figure answers equal to gold SQL | 24 of 24 | 9 of 12 |
+| Document answers citing a relevant passage | 17 of 17 | 8 of 9 |
+| Key facts stated | 8 of 8 | 1 to 2 of 3 over 3 runs |
+| Why answers naming the planted driver | 4 of 4 | 3 of 3 |
+| Why answers citing the event's document | 4 of 4 | 3 of 3 |
+| Scan answers passed | 13 of 13 | 3 of 3 |
+| Wrong answers among all answers | 0 of 79 | 1 of 37 |
+| Leaks | 0 | Not run |
+| Fell back to the no-key answer | 3 to 15 of 180 over 3 runs | 2 to 6 of 53 over 3 runs |
 
 ## Who sees what
 

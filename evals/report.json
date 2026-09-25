@@ -1182,6 +1182,543 @@
       }
     }
   },
+  "live": {
+    "backend": "anthropic",
+    "commit": "0f54b59ac4ed5098696a3475f99b19f2d18bbfa8",
+    "cost_usd": 4.502972,
+    "date": "2026-09-25",
+    "fallback_reasons": {
+      "dev": {
+        "invalid": 3,
+        "reading": 19
+      },
+      "heldout": {
+        "reading": 12
+      }
+    },
+    "metrics": {
+      "dev": {
+        "abstention": {
+          "wrong_answer": {
+            "hits": [
+              0,
+              0,
+              0
+            ],
+            "max": 0.0,
+            "min": 0.0,
+            "n": [
+              79,
+              79,
+              79
+            ],
+            "values": [
+              0.0,
+              0.0,
+              0.0
+            ]
+          }
+        },
+        "answers": {
+          "fact_recall": {
+            "hits": [
+              8,
+              8,
+              8
+            ],
+            "max": 1.0,
+            "min": 1.0,
+            "n": [
+              8,
+              8,
+              8
+            ],
+            "values": [
+              1.0,
+              1.0,
+              1.0
+            ]
+          },
+          "grounded": {
+            "hits": [
+              17,
+              17,
+              17
+            ],
+            "max": 1.0,
+            "min": 1.0,
+            "n": [
+              17,
+              17,
+              17
+            ],
+            "values": [
+              1.0,
+              1.0,
+              1.0
+            ]
+          }
+        },
+        "fallbacks": {
+          "requests": {
+            "hits": [
+              4,
+              3,
+              15
+            ],
+            "max": 0.0833,
+            "min": 0.0167,
+            "n": [
+              180,
+              180,
+              180
+            ],
+            "values": [
+              0.0222,
+              0.0167,
+              0.0833
+            ]
+          }
+        },
+        "ocr": {
+          "answers": {
+            "hits": [
+              13,
+              13,
+              13
+            ],
+            "max": 1.0,
+            "min": 1.0,
+            "n": [
+              13,
+              13,
+              13
+            ],
+            "values": [
+              1.0,
+              1.0,
+              1.0
+            ]
+          }
+        },
+        "permissions": {
+          "leaks": {
+            "max": 0,
+            "min": 0,
+            "values": [
+              0,
+              0,
+              0
+            ]
+          }
+        },
+        "refusal": {
+          "f1": {
+            "max": 1.0,
+            "min": 1.0,
+            "values": [
+              1.0,
+              1.0,
+              1.0
+            ]
+          },
+          "false_refusal": {
+            "hits": [
+              0,
+              0,
+              0
+            ],
+            "max": 0.0,
+            "min": 0.0,
+            "n": [
+              23,
+              23,
+              23
+            ],
+            "values": [
+              0.0,
+              0.0,
+              0.0
+            ]
+          },
+          "injections_missed": {
+            "max": 0,
+            "min": 0,
+            "values": [
+              0,
+              0,
+              0
+            ]
+          }
+        },
+        "routing": {
+          "accuracy": {
+            "hits": [
+              38,
+              38,
+              38
+            ],
+            "max": 1.0,
+            "min": 1.0,
+            "n": [
+              38,
+              38,
+              38
+            ],
+            "values": [
+              1.0,
+              1.0,
+              1.0
+            ]
+          },
+          "macro_f1": {
+            "max": 1.0,
+            "min": 1.0,
+            "values": [
+              1.0,
+              1.0,
+              1.0
+            ]
+          }
+        },
+        "sql": {
+          "execution_accuracy": {
+            "hits": [
+              24,
+              24,
+              24
+            ],
+            "max": 1.0,
+            "min": 1.0,
+            "n": [
+              24,
+              24,
+              24
+            ],
+            "values": [
+              1.0,
+              1.0,
+              1.0
+            ]
+          }
+        },
+        "why": {
+          "cited": {
+            "hits": [
+              4,
+              4,
+              4
+            ],
+            "max": 1.0,
+            "min": 1.0,
+            "n": [
+              4,
+              4,
+              4
+            ],
+            "values": [
+              1.0,
+              1.0,
+              1.0
+            ]
+          },
+          "driver_named": {
+            "hits": [
+              4,
+              4,
+              4
+            ],
+            "max": 1.0,
+            "min": 1.0,
+            "n": [
+              4,
+              4,
+              4
+            ],
+            "values": [
+              1.0,
+              1.0,
+              1.0
+            ]
+          }
+        }
+      },
+      "heldout": {
+        "abstention": {
+          "wrong_answer": {
+            "hits": [
+              1,
+              1,
+              1
+            ],
+            "max": 0.027,
+            "min": 0.027,
+            "n": [
+              37,
+              37,
+              37
+            ],
+            "values": [
+              0.027,
+              0.027,
+              0.027
+            ]
+          }
+        },
+        "answers": {
+          "fact_recall": {
+            "hits": [
+              2,
+              2,
+              1
+            ],
+            "max": 0.6667,
+            "min": 0.3333,
+            "n": [
+              3,
+              3,
+              3
+            ],
+            "values": [
+              0.6667,
+              0.6667,
+              0.3333
+            ]
+          },
+          "grounded": {
+            "hits": [
+              8,
+              8,
+              8
+            ],
+            "max": 0.8889,
+            "min": 0.8889,
+            "n": [
+              9,
+              9,
+              9
+            ],
+            "values": [
+              0.8889,
+              0.8889,
+              0.8889
+            ]
+          }
+        },
+        "fallbacks": {
+          "requests": {
+            "hits": [
+              2,
+              4,
+              6
+            ],
+            "max": 0.1132,
+            "min": 0.0377,
+            "n": [
+              53,
+              53,
+              53
+            ],
+            "values": [
+              0.0377,
+              0.0755,
+              0.1132
+            ]
+          }
+        },
+        "ocr": {
+          "answers": {
+            "hits": [
+              3,
+              3,
+              3
+            ],
+            "max": 1.0,
+            "min": 1.0,
+            "n": [
+              3,
+              3,
+              3
+            ],
+            "values": [
+              1.0,
+              1.0,
+              1.0
+            ]
+          }
+        },
+        "refusal": {
+          "f1": {
+            "max": 0.8571,
+            "min": 0.8571,
+            "values": [
+              0.8571,
+              0.8571,
+              0.8571
+            ]
+          },
+          "false_refusal": {
+            "hits": [
+              0,
+              0,
+              0
+            ],
+            "max": 0.0,
+            "min": 0.0,
+            "n": [
+              14,
+              14,
+              14
+            ],
+            "values": [
+              0.0,
+              0.0,
+              0.0
+            ]
+          },
+          "injections_missed": {
+            "max": 1,
+            "min": 1,
+            "values": [
+              1,
+              1,
+              1
+            ]
+          }
+        },
+        "routing": {
+          "accuracy": {
+            "hits": [
+              24,
+              24,
+              24
+            ],
+            "max": 0.9231,
+            "min": 0.9231,
+            "n": [
+              26,
+              26,
+              26
+            ],
+            "values": [
+              0.9231,
+              0.9231,
+              0.9231
+            ]
+          },
+          "macro_f1": {
+            "max": 0.9796,
+            "min": 0.9796,
+            "values": [
+              0.9796,
+              0.9796,
+              0.9796
+            ]
+          }
+        },
+        "sql": {
+          "execution_accuracy": {
+            "hits": [
+              9,
+              9,
+              9
+            ],
+            "max": 0.75,
+            "min": 0.75,
+            "n": [
+              12,
+              12,
+              12
+            ],
+            "values": [
+              0.75,
+              0.75,
+              0.75
+            ]
+          }
+        },
+        "why": {
+          "cited": {
+            "hits": [
+              3,
+              3,
+              3
+            ],
+            "max": 1.0,
+            "min": 1.0,
+            "n": [
+              3,
+              3,
+              3
+            ],
+            "values": [
+              1.0,
+              1.0,
+              1.0
+            ]
+          },
+          "driver_named": {
+            "hits": [
+              3,
+              3,
+              3
+            ],
+            "max": 1.0,
+            "min": 1.0,
+            "n": [
+              3,
+              3,
+              3
+            ],
+            "values": [
+              1.0,
+              1.0,
+              1.0
+            ]
+          }
+        }
+      }
+    },
+    "models": {
+      "check": "gemini-3.5-flash",
+      "fast": "claude-haiku-4-5",
+      "main": "claude-sonnet-5"
+    },
+    "runs": 3,
+    "splits": [
+      "dev",
+      "heldout"
+    ],
+    "usage": {
+      "claude-haiku-4-5": {
+        "cache_read_tokens": 0,
+        "cache_write_tokens": 0,
+        "calls": 24,
+        "cost_usd": 0.031972,
+        "failed": 0,
+        "input_tokens": 25317,
+        "output_tokens": 1331
+      },
+      "claude-sonnet-5": {
+        "cache_read_tokens": 1466421,
+        "cache_write_tokens": 17891,
+        "calls": 416,
+        "cost_usd": 3.285288,
+        "failed": 0,
+        "input_tokens": 777988,
+        "output_tokens": 139130
+      },
+      "gemini-3.5-flash": {
+        "cache_read_tokens": 0,
+        "cache_write_tokens": 0,
+        "calls": 517,
+        "cost_usd": 1.185712,
+        "failed": 49,
+        "input_tokens": 206411,
+        "output_tokens": 97344
+      }
+    }
+  },
   "shared": {
     "hostile_sql": {
       "executions": 552,
