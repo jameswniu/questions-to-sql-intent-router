@@ -5,6 +5,7 @@ from collections.abc import Callable, Iterator
 from dataclasses import dataclass, field
 from datetime import date
 from decimal import Decimal
+from fractions import Fraction
 from typing import Any
 
 import numpy as np
@@ -59,6 +60,65 @@ def run(df, params):
             gb, gc = totals(frame)
             rows.append({"group": str(key), "base": gb, "current": gc, "change": gc - gb, "pct": pct(gb, gc)})
         rows.sort(key=lambda r: abs(r["change"]), reverse=True)
+        out["groups"] = rows
+    return out
+"""
+# The decompose template as Claude adapted it against the real API once the prompt named Fraction as provided: the
+# exact split copied whole, Fraction used without an import, and a helper decompose never calls.
+DECOMPOSE_CODE = """
+def _cents(series):
+    return int(sum(round(float(v) * 100) for v in series.dropna()))
+
+
+def _pct(base, current):
+    return None if base == 0 else (current - base) / abs(base)
+
+
+def _split(n0, t0, n1, t1):
+    delta = t1 - t0
+    if n0 == 0 and n1 == 0:
+        return delta, 0, 0
+    m0 = Fraction(t0, n0) if n0 else Fraction(t1, n1)
+    m1 = Fraction(t1, n1) if n1 else m0
+    count_effect = round((n1 - n0) * (m0 + m1) / 2)
+    return delta, count_effect, delta - count_effect
+
+
+def run(df, params):
+    value, period = params["value"], params["period"]
+    base, current = params["base"], params["current"]
+    count_col, group = params.get("count"), params.get("group")
+
+    def side(frame, p):
+        rows = frame[frame[period] == p]
+        n = int(rows[count_col].sum()) if count_col else len(rows)
+        return n, _cents(rows[value])
+
+    def effects(frame):
+        n0, t0 = side(frame, base)
+        n1, t1 = side(frame, current)
+        delta, ce, me = _split(n0, t0, n1, t1)
+        return {
+            "n_base": n0,
+            "n_current": n1,
+            "total_base": t0 / 100,
+            "total_current": t1 / 100,
+            "mean_base": t0 / n0 / 100 if n0 else None,
+            "mean_current": t1 / n1 / 100 if n1 else None,
+            "delta_total": delta / 100,
+            "count_effect": ce / 100,
+            "mean_effect": me / 100,
+        }
+
+    out = effects(df)
+    if group:
+        rows = []
+        for key, frame in df.groupby(group, sort=True):
+            r = effects(frame)
+            r["group"] = str(key)
+            r["share"] = r["delta_total"] / out["delta_total"] if out["delta_total"] else None
+            rows.append(r)
+        rows.sort(key=lambda r: abs(r["delta_total"]), reverse=True)
         out["groups"] = rows
     return out
 """
@@ -150,7 +210,8 @@ class Sandbox:
             result = templates.TEMPLATES[template](df, params)
         else:
             assert code is not None
-            scope: dict[str, Any] = {"pd": pd, "np": np, "math": math, "statistics": statistics}
+            # The names sandbox/runner.py gives adapted code.
+            scope: dict[str, Any] = {"pd": pd, "np": np, "math": math, "statistics": statistics, "Fraction": Fraction}
             exec(code, scope)
             result = scope["run"](df, params)
             if self.skew and result.get("change") is not None:

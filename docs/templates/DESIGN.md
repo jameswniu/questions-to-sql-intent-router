@@ -130,7 +130,7 @@ Nothing above calls a language model. Setting `LLM_BACKEND` to `anthropic` or `v
 - Document answers are written by the main model from the retrieved passages, sent as search-result blocks with citations on and no tools. Each sentence has to pass the verifier and then a reading against the passage it cites, by the fast model or, with `LLM_CHECK_BACKEND=gemini`, by Gemini, and the writer gets one retry with the reasons before anything is cut.
 - Why questions get an orchestrator with three helpers, each handed only what its step needs. The SQL helper runs typed queries on the asker's pool. The document helper retrieves as the asker and has a model with no tools pick passages, returning only handles and labels. The analysis helper adapts a sandbox template and has no database handle. The orchestrator holds the tools and sees only handles such as `d1`, `a1` and `c1`.
 - In a why answer the headline and driver sentences are built in code from the rows, and the model writes only the cited cause sentences, so every number stays traceable.
-- The budget is 8 steps and 25 seconds, with at most 4 tool calls a turn and 12 a run.
+- The budget is 8 steps and 60 seconds, with at most 4 tool calls a turn and 12 a run.
 - The request builder refuses any request that carries both tools and a passage, so the isolation is enforced in code, and the tests check every request a scripted model receives.
 
 The checker reads the same memo a cause sentence cites, so a memo written to say its claims are supported could talk it into a made-up cause. That sentence can't carry a number and still cites its passage, so a reader can check it. `make eval-live` scores live mode against real models, and [EVALS.md](EVALS.md) has the result.

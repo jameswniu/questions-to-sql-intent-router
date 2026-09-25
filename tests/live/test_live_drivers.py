@@ -12,7 +12,7 @@ from app.live.why import answer_why_live, plan
 from app.llm.fake import ScriptedLLM, calls, json_reply
 from app.semantic.layer import Layer, default_layer
 from app.verify import verify
-from tests.live.conftest import BY_PERIL, QUESTION, YOY_CODE, Database, NoKey, Sandbox
+from tests.live.conftest import BY_PERIL, DECOMPOSE_CODE, QUESTION, YOY_CODE, Database, NoKey, Sandbox
 
 HEADLINE_TEXT = (
     "Paid losses in the West were $35,768,928 in Q2 2025 and $24,345,938 in Q1 2025, up $11,422,990 (46.9%)."
@@ -114,6 +114,23 @@ async def test_a_split_of_something_else_names_no_driver_and_isnt_evidence(
     assert (len(evidence.rows), len(evidence.sandbox), len(done.result.sql)) == (6, 1, 2)
     ran = [(statement, tuple(bound)) for _, statement, bound in splits.calls]
     assert done.result.statements == [ran[0], ran[1]] and ran[2] not in done.result.statements
+
+
+async def test_a_split_decomposed_as_the_orchestrator_is_told_to_names_its_driver(
+    dana: Principal, layer: Layer, splits: Splits, sandbox: Sandbox, no_key: NoKey
+) -> None:
+    # The instructions have the orchestrator decompose every split, and a real model does, so the driver comes from
+    # decompose's delta_total, adapted the way the model adapts it.
+    llm = ScriptedLLM(
+        calls(("query_metric", by_peril(dana, layer))),
+        calls(("analyze", {"template": "decompose", "dataset": "d2"})),
+        json_reply({"code": DECOMPOSE_CODE}),
+        calls(("finish", {"analyses": ["a1"], "documents": []})),
+    )
+    done = await answer_why_live(llm, dana, QUESTION, layer=layer, sandbox=sandbox)
+    assert done.live and done.fallback is None and llm.left == 0
+    assert [claim.text for claim in done.result.draft.claims] == [HEADLINE_TEXT, DRIVER_TEXT]
+    assert verify(done.result.draft, done.result.evidence, dana).passed
 
 
 async def test_a_drivers_share_is_of_the_headlines_change_and_is_traced_to_the_rows(

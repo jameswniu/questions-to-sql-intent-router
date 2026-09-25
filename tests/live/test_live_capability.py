@@ -1,9 +1,12 @@
 import ast
+import importlib
 import json
 import os
 import subprocess
 import sys
 from dataclasses import replace
+from pathlib import Path
+from types import ModuleType
 
 import pandas as pd
 import pytest
@@ -17,13 +20,14 @@ from app.live.datasets import Dataset
 from app.live.errors import Invalid
 from app.live.why import answer_why_live, plan
 from app.llm.fake import ScriptedLLM, calls, json_reply
-from app.sandbox import templates
+from app.sandbox import codecheck, templates
 from app.sandbox.client import Table
 from app.semantic.compile import compile
 from app.semantic.layer import Layer, default_layer
 from app.semantic.query import MetricQuery
 from tests.live.conftest import (
     BY_PERIL,
+    DECOMPOSE_CODE,
     MEMO,
     NOTE,
     PLANTED_HIT,
@@ -176,6 +180,60 @@ async def test_the_golden_result_is_kept_even_when_the_adapted_one_agrees(layer:
         pd.DataFrame(json.loads(json.dumps(table.rows, default=float)), columns=table.columns), params
     )
     assert analyzed.analysis.result["change"] == golden["change"]
+
+
+def _run_time_names(source: str) -> set[str]:
+    """The names a module imports and then uses as it runs. Under the future import an annotation is never
+    evaluated, so a name that only annotates is left out."""
+    tree = ast.parse(source)
+    imported = {
+        (alias.asname or alias.name).partition(".")[0]
+        for node in tree.body
+        if isinstance(node, ast.Import | ast.ImportFrom) and getattr(node, "module", None) != "__future__"
+        for alias in node.names
+    }
+    annotations = [
+        found
+        for node in ast.walk(tree)
+        for found in (getattr(node, "annotation", None), getattr(node, "returns", None))
+        if isinstance(found, ast.expr)
+    ]
+    annotating = {id(name) for found in annotations for name in ast.walk(found)}
+    return {node.id for node in ast.walk(tree) if isinstance(node, ast.Name) and id(node) not in annotating} & imported
+
+
+@pytest.fixture
+def runner(monkeypatch: pytest.MonkeyPatch) -> ModuleType:
+    """sandbox/runner.py as the sandbox image loads it, with the golden templates beside it."""
+    monkeypatch.setitem(sys.modules, "templates", templates)
+    monkeypatch.setattr(sys, "path", list(sys.path))
+    return importlib.import_module("sandbox.runner")
+
+
+def test_adapted_code_is_given_every_name_the_golden_templates_run_with(runner: ModuleType) -> None:
+    # Code can't import, so a golden template that uses a name the runner doesn't give can't be copied faithfully.
+    # decompose's exact split uses Fraction, which the orchestrator runs on every split.
+    used = _run_time_names(Path(templates.__file__).read_text())
+    assert "Fraction" in used and used <= set(runner.PROVIDED)
+    assert tuple(runner.PROVIDED) == codecheck.PROVIDED
+    assert f"The sandbox provides {codecheck.PROVIDED_TEXT} as names" in analyze.INSTRUCTIONS
+    table = {"columns": ["period", "peril", "value"], "rows": [[p, g, float(v)] for p, g, v in BY_PERIL]}
+    params = {"value": "value", "period": "period", "base": "prior", "current": "current", "group": "peril"}
+    adapted = runner.execute({"code": DECOMPOSE_CODE, "params": params, "table": table})
+    assert adapted == runner.execute({"template": "decompose", "params": params, "table": table})
+
+
+async def test_the_decompose_template_adapts_as_the_model_writes_it(
+    layer: Layer, headline: MetricQuery, sandbox: Sandbox
+) -> None:
+    dataset = by_peril(headline)
+    llm = ScriptedLLM(json_reply({"code": DECOMPOSE_CODE}))
+    analyzed = await analyze.analyze(llm, "u_adj_west", dataset, "decompose", "a1", layer, sandbox=sandbox)
+    assert analyzed.analysis is not None and analyzed.analysis.result["groups"][0]["group"] == "hail"
+    # Before the prompt named Fraction as provided, the model's copy began by importing it, which is refused.
+    imported = ScriptedLLM(json_reply({"code": "from fractions import Fraction\n" + DECOMPOSE_CODE}))
+    with pytest.raises(Invalid, match="import is not allowed; pd, np, math, statistics and Fraction are provided"):
+        await analyze.analyze(imported, "u_adj_west", dataset, "decompose", "a1", layer, sandbox=sandbox)
 
 
 async def test_adapted_code_the_sandbox_check_refuses_never_runs(

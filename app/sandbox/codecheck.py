@@ -32,6 +32,10 @@ BANNED_NODES: dict[type[ast.stmt], str] = {
     ast.AsyncFunctionDef: "async function",
 }
 MAX_SOURCE_BYTES = 64 * 1024
+# The names sandbox/runner.py binds for adapted code, as this refusal and the analysis prompt list them. A test holds
+# the list to the runner's own.
+PROVIDED = ("pd", "np", "math", "statistics", "Fraction")
+PROVIDED_TEXT = f"{', '.join(PROVIDED[:-1])} and {PROVIDED[-1]}"
 
 
 @dataclass(frozen=True)
@@ -93,9 +97,7 @@ def check(code: str) -> Verdict:
     for node in ast.walk(tree):
         for banned, label in BANNED_NODES.items():
             if isinstance(node, banned):
-                return Verdict(
-                    False, f"line {node.lineno}: {label} is not allowed; pd, np, math and statistics are provided"
-                )
+                return Verdict(False, f"line {node.lineno}: {label} is not allowed; {PROVIDED_TEXT} are provided")
         if isinstance(node, ast.Attribute) and node.attr.startswith("_"):
             return Verdict(False, f"line {node.lineno}: attribute {node.attr!r} starts with an underscore")
         if isinstance(node, ast.Name) and (node.id in BANNED_NAMES or node.id.startswith("__")):

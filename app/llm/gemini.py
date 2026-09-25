@@ -17,9 +17,14 @@ DEFAULT_MODEL = "gemini-3.8-flash"
 DEFAULT_LOCATION = "global"
 # The SDK retries rate limits, server errors and dropped connections itself, backing off between tries.
 ATTEMPTS = 4
-# Thinking counts against max_output_tokens, so a request that names no effort thinks low and leaves its short limit
-# to the reply. Vertex refuses minimal.
+# A request that names no effort thinks low. Vertex refuses minimal.
 THINKING = {"low": types.ThinkingLevel.LOW, "medium": types.ThinkingLevel.MEDIUM, "high": types.ThinkingLevel.HIGH}
+# Thinking counts against max_output_tokens, so the call's limit is the request's, which is for the reply, plus this
+# much room to think at the request's level. Thinking low still took 232 tokens on a support check, which cut its
+# verdict off when the two shared the check's 256, and 25 real checks reached 428 with the reply. The room is wide
+# because one sample says little about the worst case, and it costs nothing unused: only generated tokens bill, and
+# the reading's own deadline bounds how long a check can think.
+THINKING_ROOM = {"low": 4096, "medium": 8192, "high": 16384}
 ROLES = {"user": "user", "assistant": "model"}
 STOPS = {"STOP": "end_turn", "MAX_TOKENS": "max_tokens"}
 # The finish reasons of a reply Google's filters stopped, which ask counts as the model declining.
@@ -57,11 +62,11 @@ def contents(request: Request) -> list[types.Content]:
 def config(request: Request) -> types.GenerateContentConfig:
     """The call's token limit, thinking level, system text and output schema. There are no sampling parameters, and
     the SDK's automatic function calling is off, since Gemini is never offered tools."""
-    shape = request.output
+    shape, effort = request.output, request.effort or "low"
     return types.GenerateContentConfig(
         system_instruction="\n\n".join(request.system) if request.system else None,
-        max_output_tokens=request.max_tokens,
-        thinking_config=types.ThinkingConfig(thinking_level=THINKING[request.effort or "low"]),
+        max_output_tokens=request.max_tokens + THINKING_ROOM[effort],
+        thinking_config=types.ThinkingConfig(thinking_level=THINKING[effort]),
         response_mime_type="application/json" if shape is not None else None,
         response_json_schema=dict(shape.schema) if shape is not None else None,
         automatic_function_calling=types.AutomaticFunctionCallingConfig(disable=True),

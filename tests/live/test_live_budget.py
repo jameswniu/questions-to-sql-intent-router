@@ -96,10 +96,10 @@ async def test_a_run_past_its_wall_clock_falls_back_to_the_no_key_workflow(
     dana: Principal, layer: Layer, database: Database, no_key: NoKey
 ) -> None:
     llm = ScriptedLLM(*(calls(("query_metric", headline(dana, layer))) for _ in range(8)))
-    # Each reading of the clock is ten seconds on: the run starts at 0, its first step reads 10 and that step's
-    # tool 20, and the second step reads 30, past the 25 s budget.
-    done = await answer_why_live(llm, dana, QUESTION, layer=layer, clock=ticking(10.0))
-    assert live_why.BUDGET_S == 25.0
+    # Each reading of the clock is 25 seconds on: the run starts at 0, its first step reads 25 and that step's
+    # tool 50, and the second step reads 75, past the 60 s budget.
+    done = await answer_why_live(llm, dana, QUESTION, layer=layer, clock=ticking(25.0))
+    assert live_why.BUDGET_S == 60.0
     assert (done.live, done.fallback, done.steps) == (False, "time", 1)
     assert len(llm.sent(live_why.TEMPLATE)) == 1 and no_key.calls == [QUESTION]
 
@@ -109,7 +109,7 @@ async def test_a_fallback_is_recorded_on_the_request_span(
 ) -> None:
     llm = ScriptedLLM(*(calls(("query_metric", headline(dana, layer))) for _ in range(8)))
     with telemetry.tracer().start_as_current_span("claims_qa.ask") as span:
-        await answer_why_live(llm, dana, QUESTION, layer=layer, clock=ticking(10.0))
+        await answer_why_live(llm, dana, QUESTION, layer=layer, clock=ticking(25.0))
     events = [(e.name, dict(e.attributes or {})) for e in span.events]  # type: ignore[attr-defined]
     assert ("claims_qa.live_fallback", {"reason": "time", "steps": 1}) in events
 
@@ -214,7 +214,7 @@ async def test_residue_routing_and_extraction_stop_at_their_deadlines(
 def test_the_deadlines_are_the_ones_the_route_budgets_are_sized_for() -> None:
     # The pipeline's route timeouts have to leave room for these, so a change here is a change there too.
     assert (residue.DEADLINE_S, extract.DEADLINE_S, writer.QUAL_DEADLINE_S, support.DEADLINE_S) == (5.0, 5.0, 20.0, 8.0)
-    assert (live_why.BUDGET_S, live_why.STEP_TIMEOUT_S, live_why.MAX_STEPS) == (25.0, 20.0, 8)
+    assert (live_why.BUDGET_S, live_why.STEP_TIMEOUT_S, live_why.MAX_STEPS) == (60.0, 20.0, 8)
     assert support.DEADLINE_S < writer.QUAL_DEADLINE_S and live_why.STEP_TIMEOUT_S < live_why.BUDGET_S
 
 

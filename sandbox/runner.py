@@ -12,6 +12,7 @@ import os
 import statistics
 import sys
 from decimal import Decimal
+from fractions import Fraction
 from typing import Any
 
 # -I leaves the script's own directory off sys.path; /runner is root-owned on a read-only root.
@@ -32,6 +33,10 @@ SAFE_BUILTINS = {
         "OverflowError", "RuntimeError", "StopIteration", "TypeError", "ValueError", "ZeroDivisionError",
     )
 }  # fmt: skip
+# The names adapted code runs with, beside the builtins above. Code can't import, so these have to include every
+# name the golden templates use as they run, or a template can't be copied faithfully: decompose's exact split needs
+# Fraction. codecheck's refusal and the analysis prompt list the same names, and a test holds them together.
+PROVIDED: dict[str, Any] = {"pd": pd, "np": np, "math": math, "statistics": statistics, "Fraction": Fraction}
 MAX_ERROR_CHARS = 2000
 
 
@@ -60,14 +65,7 @@ def _jsonable(value: Any) -> Any:
 
 
 def _load_code(code: str) -> Any:
-    scope: dict[str, Any] = {
-        "__builtins__": SAFE_BUILTINS,
-        "__name__": "job",
-        "pd": pd,
-        "np": np,
-        "math": math,
-        "statistics": statistics,
-    }
+    scope: dict[str, Any] = {"__builtins__": SAFE_BUILTINS, "__name__": "job", **PROVIDED}
     exec(compile(code, "<job>", "exec"), scope)
     run = scope.get("run")
     if not callable(run):

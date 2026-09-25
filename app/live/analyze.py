@@ -46,10 +46,10 @@ INSTRUCTIONS = f"""\
 You adapt one of the golden analysis templates below into standalone code for a sandbox.
 
 Write Python that defines exactly one top-level function run(df, params) and returns a dict with the same keys and \
-the same numbers as the named template would for this df and params. The sandbox provides pd, np, math and \
-statistics as names; it refuses imports, classes, async functions, decorators, attributes that start with an \
-underscore, and names such as open, eval, exec and getattr. Helper functions and constants may sit at the top level. \
-Reply with the code only, in the code field.
+the same numbers as the named template would for this df and params. The sandbox provides \
+{codecheck.PROVIDED_TEXT} as names, so use them without importing them; it refuses imports, classes, async \
+functions, decorators, attributes that start with an underscore, and names such as open, eval, exec and getattr. \
+Helper functions and constants may sit at the top level. Reply with the code only, in the code field.
 
 The golden templates:
 

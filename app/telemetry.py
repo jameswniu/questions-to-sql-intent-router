@@ -47,6 +47,8 @@ PRICES = {
     "claude-haiku-4-5": (Decimal("1"), Decimal("5"), Decimal("0.10")),
     # Vertex's introductory price on the global endpoint, through 2026-12-31. It then rises to 1.50, 7.50 and 0.15.
     "gemini-3.8-flash": (Decimal("0.75"), Decimal("3.75"), Decimal("0.075")),
+    # Vertex's global-endpoint price. Output includes the reasoning tokens Gemini thinks with.
+    "gemini-3.5-flash": (Decimal("1.50"), Decimal("9.00"), Decimal("0.15")),
 }
 CACHE_WRITE_RATE = Decimal("1.25")
 

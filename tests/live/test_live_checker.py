@@ -33,7 +33,7 @@ from app.llm.client import (
     parse,
 )
 from app.llm.fake import ScriptedLLM, cited, json_reply, reply
-from app.llm.gemini import GeminiLLM, config, contents, stop_reason
+from app.llm.gemini import THINKING_ROOM, GeminiLLM, config, contents, stop_reason
 from app.llm.request import Effort, Message, Passage, Request, Tool, ToolResult, Turn
 from tests.live.conftest import MEMO, MEMO_SENTENCE, make_hit
 from tools import live_check
@@ -177,7 +177,8 @@ def test_the_call_thinks_low_unless_the_request_asks_for_more(
 
 def test_the_call_carries_the_system_text_token_limit_and_schema_and_nothing_to_sample_with() -> None:
     settings = config(checking())
-    assert settings.system_instruction == support.INSTRUCTIONS and settings.max_output_tokens == 256
+    assert settings.system_instruction == support.INSTRUCTIONS
+    assert settings.max_output_tokens == 256 + THINKING_ROOM["low"]
     assert settings.response_mime_type == "application/json"
     assert settings.response_json_schema == dict(output_for(support.Verdict).schema)
     assert settings.automatic_function_calling == types.AutomaticFunctionCallingConfig(disable=True)
@@ -193,6 +194,31 @@ def test_the_call_carries_the_system_text_token_limit_and_schema_and_nothing_to_
     assert free.system_instruction == "One.\n\nTwo."
     assert (free.response_mime_type, free.response_json_schema) == (None, None)
     assert config(Request("t.v1", GEMINI, (), (Message("user", ("q",)),), 64)).system_instruction is None
+
+
+@pytest.mark.parametrize("effort", [None, "low", "medium", "high"])
+def test_the_token_limit_is_the_requests_reply_limit_plus_room_to_think_at_its_level(effort: Effort | None) -> None:
+    request = replace(checking(), effort=effort)
+    assert config(request).max_output_tokens == request.max_tokens + THINKING_ROOM[effort or "low"]
+
+
+async def test_a_verdict_after_as_much_thinking_as_a_real_check_took_still_fits() -> None:
+    """Gemini counts thinking inside max_output_tokens. A real support check thought for 232 tokens at low, and with
+    the limit at the check's own 256 its verdict stopped 6 tokens in, as '{"supported": false, "'."""
+    thought, verdict = 232, 62
+
+    async def thinking() -> types.GenerateContentResponse:
+        limit = models.calls[-1]["config"].max_output_tokens
+        if thought + verdict > limit:
+            usage = {"promptTokenCount": 344, "candidatesTokenCount": limit - thought, "thoughtsTokenCount": thought}
+            return answered('{"supported": false, "', finish="MAX_TOKENS", usage=usage)
+        usage = {"promptTokenCount": 344, "candidatesTokenCount": verdict, "thoughtsTokenCount": thought}
+        return answered(usage=usage, thought="The memo names the hail.")
+
+    llm, models = gemini(thinking)
+    assert await support.check(llm, "Hail drove the rise.", [MEMO]) == support.Verdict(
+        supported=True, reason="The memo says so."
+    )
 
 
 @pytest.mark.parametrize(

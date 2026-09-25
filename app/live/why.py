@@ -30,7 +30,10 @@ log = logging.getLogger(__name__)
 
 TEMPLATE = "why.orchestrator.v1"
 MAX_STEPS = 8
-BUDGET_S = 25.0
+# Against Claude on the API, a run that split the change two ways took about 38 seconds to its reading: the four
+# orchestrator turns, two 7 second adaptations of the analysis template, the document pick, the writing and its
+# reading, one after another. A second writing with the verifier's reasons adds about 5.
+BUDGET_S = 60.0
 STEP_TIMEOUT_S = 20.0
 # Each tool call can cost a database query, a model call or a sandbox run, so they are capped as well as the steps.
 MAX_CALLS_PER_TURN = 4
