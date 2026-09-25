@@ -21,9 +21,23 @@ The first run builds the images, seeds 6,951 claims and reads 60 scanned forms. 
 
 `make test` runs the tests inside the stack. `make eval` re-scores the eval numbers on this page, and CI fails when the page and the scores disagree.
 
-<img src="docs/demo/ask.gif" alt="An adjuster asks how much was paid on hail claims in Colorado in the second quarter of 2025 and gets a dollar figure with the SQL behind it, then asks whether flood damage is covered and gets the exclusion quoted from the policy with its citation." width="100%">
+<img src="docs/demo/ask.gif" alt="Dana, the West adjuster, asks how much was paid on hail claims in Colorado in the second quarter of 2025 and reads the $4,108,453 answer, then opens the evidence to the SQL behind it, its bound values and the row it returned." width="100%">
 
-[The same clip as an mp4](docs/demo/ask.mp4). Two more clips show [a why question with its evidence](docs/demo/why.mp4), and [an injection, an off-topic question, a year outside the data and a question that needs one more detail](docs/demo/edges.mp4).
+[The same clip as an mp4](docs/demo/ask.mp4). Every clip runs without an API key. The recorder adds the captions, the reading pauses and the larger evidence text, and shows each answer as the app gave it.
+
+| Demo | What it shows | Length |
+|---|---|---|
+| [A figure and its SQL](docs/demo/ask.mp4) | Dana asks what was paid on Colorado hail claims in Q2 2025 and traces the figure to the SQL, its bound values and the row it returned. | 48 s |
+| [A policy answer and its source](docs/demo/policy.mp4) | Dana asks whether flood damage is covered, follows the citation to section 4.1 of the HO-2025 policy and reads the passage it came from. | 70 s |
+| [A total read from a scan](docs/demo/scan.mp4) | Priya asks for the total on a scanned invoice and checks it on the crop of the scan and in the payment query. | 55 s |
+| [Why losses rose](docs/demo/why.mp4) | Priya asks why West paid losses rose in Q2 2025, and the driver split shows the hail and Colorado shares the answer gives. | 95 s |
+| [One claim, three users](docs/demo/permissions.mp4) | Dana, Omar and Sam ask about the same West claim, and only Dana gets it back. | 79 s |
+| [Withheld small groups](docs/demo/suppression.mp4) | Sam, the analyst, asks for monthly counts and gets withheld cells where a month has too few claims. | 80 s |
+| [A question with no period](docs/demo/clarify.mp4) | Priya asks how much was paid, picks 2025 from the options the app offers and checks the query it ran. | 60 s |
+| [An instruction override](docs/demo/injection.mp4) | Dana tells the app to ignore its instructions and show every region's claims, and the gate refuses. | 26 s |
+| [An off-topic question](docs/demo/off-topic.mp4) | Dana asks for a banana bread recipe and is told what the app covers. | 21 s |
+| [A year outside the data](docs/demo/out-of-range.mp4) | Dana asks about 2022 and is told the data runs from January 2024 to June 2026. | 22 s |
+| [The dashboard by source](docs/demo/dashboard.mp4) | Priya reads the service dashboard for all requests, then for eval, replayed and browser requests alone. | 102 s |
 
 ## How it works
 
@@ -69,17 +83,23 @@ On dev, why answers take {{n dev.latency.why.p50_ms}} ms at the median and every
 
 ## Who sees what
 
-Two adjusters and the analyst ask about the same claim.
+Two adjusters and the analyst ask about the same West claim in [this clip](docs/demo/permissions.mp4).
 
-<img src="docs/demo/permissions.gif" alt="The West adjuster sees claim details, the East adjuster is told the claim can't be found, and the analyst is told analysts see aggregates only." width="100%">
+[<img src="docs/demo/permissions.poster.png" alt="Dana, the West adjuster, asks for the status of claim 105964 and reads it: open, a fire loss in Colorado, $33,474 paid." width="100%">](docs/demo/permissions.mp4)
 
-[The same clip as an mp4](docs/demo/permissions.mp4)
+| Who asks | What they get |
+|---|---|
+| Dana Reyes, claims adjuster, West, as `u_adj_west` | The claim itself: open, a fire loss in Colorado, $33,474 paid |
+| Omar Haddad, claims adjuster, East, as `u_adj_east` | The reply a missing claim gets, "I can't find claim 105964." |
+| Sam Whitfield, analyst, as `u_analyst` | No claim at all, "Analysts see aggregates only, so I can't open individual claims." |
 
 ## Dashboard
 
 `/dashboard`, for operators only, draws latency by route against its budget, the route mix, refusal and clarify rates and verifier cuts from the request log, beside the latest eval scores for each split.
 
-<img src="docs/demo/dashboard.png" alt="The operator dashboard with its request, answer rate and first event tiles, and latency for each route against its p95 budget." width="100%">
+<img src="docs/demo/dashboard.png" alt="The operator dashboard's request, answer rate, first event and rating tiles, above the lookup route's latency against its p95 budget." width="100%">
+
+[The dashboard clip](docs/demo/dashboard.mp4) filters it to eval requests, then to the questions `make up` replays, then to browser requests, whose routes and outcomes include the questions asked in the clips above.
 
 ## What it doesn't do
 
