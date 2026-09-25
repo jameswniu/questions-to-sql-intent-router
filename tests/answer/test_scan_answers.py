@@ -47,6 +47,21 @@ async def test_a_dev_scan_question_states_a_clean_total_or_falls_back_to_the_pay
 
 
 @pytest.mark.integration
+@pytest.mark.parametrize(
+    ("question", "asked"),
+    [
+        ("What's the total on the invoice for claim 104967?", "total"),
+        ("Who is the vendor on the invoice for claim 104967?", "vendor"),
+    ],
+)
+async def test_the_field_the_answer_is_about_leads_the_scan_evidence(question: str, asked: str) -> None:
+    # The evidence panel draws a scan's first six fields, and this invoice has eight.
+    result = await answer_scan(principal_for("priya"), question, 104967)
+    assert len(result.fields) > 6
+    assert result.fields[0].field == asked
+
+
+@pytest.mark.integration
 async def test_a_clean_total_is_stated_with_its_match_to_the_payment_record() -> None:
     result = await answer_scan(principal_for("dana"), "What's the total on the invoice for claim 100013?", 100013)
     assert result.text == "The total on the invoice for claim 100013 is $17,333.71, which matches the payment record."

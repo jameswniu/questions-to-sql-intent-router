@@ -112,8 +112,9 @@ async def answer_scan(principal: Principal, question: str, claim_id: int) -> Sca
         return _nothing("clarify", f"Claim {claim_id} has {join(options)}. Which one?", claim_id, options=options)
     doc_id = docs[0]
     label = _label(doc_id)
-    own = tuple(f for f in fields if f.doc_id == doc_id)
     name = _field_asked(question)
+    # The field asked about goes first, since the evidence panel draws only a scan's first few fields.
+    own = tuple(sorted((f for f in fields if f.doc_id == doc_id), key=lambda f: f.field != name))
     field = next((f for f in own if f.field == name), None)
     if name != "total":
         return _other(claim_id, doc_id, label, name, field, own)
