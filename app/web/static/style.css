@@ -158,6 +158,17 @@ button { font: inherit; color: inherit; cursor: pointer; }
   background: var(--surface); color: var(--text-2); font-size: var(--text-sm); font-weight: 500; text-decoration: none; white-space: nowrap;
 }
 .nav:hover { color: var(--text); background: var(--surface-hover); }
+/* On the chat page the demo note sits under the picker, which leaves the picker room to name every user in full. */
+body.chat .topbar {
+  display: grid; grid-template-columns: auto minmax(0, 1fr) auto auto auto; gap: 2px 12px;
+  grid-template-areas: "brand . label picker nav" "brand . . note nav";
+}
+body.chat .brand { grid-area: brand; }
+body.chat .switcher { display: contents; }
+body.chat .switcher > span { grid-area: label; }
+body.chat .switcher > select, body.chat .switcher > strong { grid-area: picker; }
+body.chat .demo-note { grid-area: note; max-width: none; }
+body.chat .nav { grid-area: nav; }
 
 /* Chat thread. */
 .thread { max-width: var(--width); margin: 0 auto; padding: 32px 16px 180px; }
@@ -409,15 +420,17 @@ svg.chart .c-good { fill: var(--chart-good); }
 svg.chart .c-refusal { fill: var(--chart-refusal); }
 svg.chart .c-neutral { fill: var(--chart-neutral); }
 
-/* Phones: the header takes two rows, and cards give back some padding. */
+/* Phones: the header stacks in rows, and cards give back some padding. */
 @media (max-width: 640px) {
-  .topbar { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px 12px; padding: 8px 16px; }
-  body.chat .topbar { grid-template-areas: "brand nav" "switch note"; }
+  .topbar { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px 12px; padding: 8px 12px; }
+  /* The picker gets a row of its own, and the note one under it. */
+  body.chat .topbar { grid-template-columns: minmax(0, 1fr) auto; gap: 6px 12px; grid-template-areas: "brand nav" "picker picker" "note note"; }
   body.dash .topbar { grid-template-areas: "brand nav" "filters filters"; }
   .brand { grid-area: brand; }
   .nav { grid-area: nav; justify-self: end; }
-  .switcher { grid-area: switch; margin-left: 0; }
-  .switcher select { width: 100%; }
+  /* Tighter sides, with the chevron 5px clear of the text, so the longest user's label fits at 390px. The font stays
+     at 16px, below which iOS Safari zooms into the field. */
+  .switcher select { width: 100%; padding-left: 10px; padding-right: 28px; background-position: right 8px center; }
   .switcher > span { display: none; }
   .demo-note { grid-area: note; }
   .filters { grid-area: filters; margin-left: 0; justify-self: start; }
