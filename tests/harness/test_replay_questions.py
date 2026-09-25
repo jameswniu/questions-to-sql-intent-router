@@ -70,18 +70,22 @@ def _replay_row_counts(superuser: Connection) -> tuple[int, int]:
     return int(requests[0]), int(audits[0])
 
 
+# The label the stack's own replay rows carry while a test runs without them.
+SET_ASIDE = "replay-set-aside"
+
+
 @pytest.fixture
 def clean_replay_rows(superuser: Connection) -> Iterator[None]:
-    def _clear() -> None:
-        superuser.execute(
-            "DELETE FROM ops.audit_log WHERE request_id IN"
-            " (SELECT request_id FROM ops.request_log WHERE source = 'replay')"
-        )
-        superuser.execute("DELETE FROM ops.request_log WHERE source = 'replay'")
-
-    _clear()
+    """Runs a test on a request log with no replay rows, then deletes the test's own and puts the stack's back, so
+    the suite leaves the dashboard's Replay traffic as it found it. The stack's rows are relabelled rather than
+    copied away, so a run that dies partway still has them, and the next run puts them back."""
+    superuser.execute("UPDATE ops.request_log SET source = %s WHERE source = 'replay'", (SET_ASIDE,))
     yield
-    _clear()
+    superuser.execute(
+        "DELETE FROM ops.audit_log WHERE request_id IN (SELECT request_id FROM ops.request_log WHERE source = 'replay')"
+    )
+    superuser.execute("DELETE FROM ops.request_log WHERE source = 'replay'")
+    superuser.execute("UPDATE ops.request_log SET source = 'replay' WHERE source = %s", (SET_ASIDE,))
 
 
 @pytest.mark.integration
@@ -118,3 +122,34 @@ def test_a_replay_that_fails_partway_leaves_no_rows_and_a_retry_leaves_one_set(
     # A second clean run does not double up on top of the first.
     replay.replay(superuser)
     assert _replay_row_counts(superuser) == (len(FAKE_QUESTIONS), len(FAKE_QUESTIONS))
+
+
+@pytest.mark.integration
+def test_the_bootstrap_replays_again_when_the_replay_rows_are_gone(
+    superuser: Connection, monkeypatch: pytest.MonkeyPatch, clean_replay_rows: None
+) -> None:
+    # The step is marked done once it succeeds, but its rows can be deleted after that, so the mark alone can't
+    # say it is done. With the rows gone and the mark still there, the next bootstrap asks the questions again.
+    monkeypatch.setattr(replay, "dev_questions", lambda: FAKE_QUESTIONS)
+    asked: list[str] = []
+
+    async def succeeds(principal: Principal, question: str, *, source: Source) -> Logged:
+        asked.append(question)
+        record = _fake_record(principal, question)
+        await write_request(record)
+        return Logged(events=[], sent=[], record=record, memory=Memory(), session_id=str(record.request_id))
+
+    monkeypatch.setattr(replay, "ask_logged", succeeds)
+    step = next(step for step in bootstrap.STEPS if step.name == "replay")
+    marked = superuser.execute("SELECT 1 FROM app.bootstrap_state WHERE step = 'replay'").fetchone() is not None
+    superuser.execute("INSERT INTO app.bootstrap_state (step) VALUES ('replay') ON CONFLICT (step) DO NOTHING")
+    try:
+        bootstrap.run(superuser, [step])
+        assert asked == [question for _, question in FAKE_QUESTIONS]
+        assert _replay_row_counts(superuser) == (len(FAKE_QUESTIONS), len(FAKE_QUESTIONS))
+        # Marked and with its rows in place, the step is skipped.
+        bootstrap.run(superuser, [step])
+        assert len(asked) == len(FAKE_QUESTIONS)
+    finally:
+        if not marked:
+            superuser.execute("DELETE FROM app.bootstrap_state WHERE step = 'replay'")

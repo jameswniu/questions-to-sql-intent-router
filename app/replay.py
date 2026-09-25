@@ -102,6 +102,13 @@ async def _replay(questions: list[tuple[str, str]]) -> Counter[str]:
     return outcomes
 
 
+def has_rows(conn: psycopg.Connection[TupleRow]) -> bool:
+    """Whether the request log still holds replay rows. They can be deleted after the replay ran, so the
+    bootstrap asks this as well as whether the step is marked done."""
+    found = conn.execute("SELECT EXISTS (SELECT 1 FROM ops.request_log WHERE source = 'replay')").fetchone()
+    return bool(found and found[0])
+
+
 def replay(conn: psycopg.Connection[TupleRow]) -> str:
     """Asks the DEV routing and quantitative questions once, as their users, so /dashboard has traffic on a fresh
     database. Each row is committed as it is written, so old replay rows are cleared on their own connection

@@ -28,6 +28,8 @@ class Step:
     run: Callable[[Connection], str]
     # A once step is skipped after it has succeeded; the others are idempotent and run every time.
     once: bool
+    # Whether what a once step made is still there. Without it the step's done mark alone decides.
+    kept: Callable[[Connection], bool] | None = None
 
 
 def apply_schema(conn: Connection) -> str:
@@ -75,7 +77,7 @@ STEPS = [
     Step("render_documents", steps.render_documents, once=False),
     Step("render_notes", steps.render_notes, once=False),
     Step("ingest", steps.ingest, once=False),
-    Step("replay", replay.replay, once=True),
+    Step("replay", replay.replay, once=True, kept=replay.has_rows),
 ]
 
 
@@ -102,8 +104,10 @@ def run(conn: Connection, steps: list[Step]) -> None:
         started = time.perf_counter()
         with conn.transaction():
             if step.once and is_done(conn, step.name):
-                log.info("%-10s skipped, already done", step.name)
-                continue
+                if step.kept is None or step.kept(conn):
+                    log.info("%-10s skipped, already done", step.name)
+                    continue
+                log.info("%-10s done before, but what it made is gone, so it runs again", step.name)
             detail = step.run(conn)
             conn.execute(
                 "INSERT INTO app.bootstrap_state (step) VALUES (%s) ON CONFLICT (step) DO UPDATE SET done_at = now()",
