@@ -23,21 +23,21 @@ The first run builds the images, seeds 6,951 claims and reads 60 scanned forms. 
 
 <img src="docs/demo/ask.gif" alt="Dana, the West adjuster, asks how much was paid on hail claims in Colorado in the second quarter of 2025 and reads the $4,108,453 answer, then opens the evidence to the SQL behind it, its bound values and the row it returned." width="100%">
 
-[The same clip as an mp4](docs/demo/ask.mp4). Every clip runs without an API key. The recorder adds the captions, the reading pauses and the larger evidence text, and shows each answer as the app gave it.
+[The same clip as an mp4](https://cdn.jsdelivr.net/gh/jameswniu/questions-to-sql-intent-router@3e8a2d945a4ae478c348b2bec2dd9d17a9ee7578/docs/demo/ask.mp4). Every clip runs without an API key. The recorder adds the captions, the reading pauses and the larger evidence text, and shows each answer as the app gave it.
 
 | Demo | What it shows | Length |
 |---|---|---|
-| [A figure and its SQL](docs/demo/ask.mp4) | Dana asks what was paid on Colorado hail claims in Q2 2025 and traces the figure to the SQL, its bound values and the row it returned. | 48 s |
-| [A policy answer and its source](docs/demo/policy.mp4) | Dana asks whether flood damage is covered, follows the citation to section 4.1 of the HO-2025 policy and reads the passage it came from. | 70 s |
-| [A total read from a scan](docs/demo/scan.mp4) | Priya asks for the total on a scanned invoice and checks it on the crop of the scan and in the payment query. | 55 s |
-| [Why losses rose](docs/demo/why.mp4) | Priya asks why West paid losses rose in Q2 2025, and the driver split shows the hail and Colorado shares the answer gives. | 95 s |
-| [One claim, three users](docs/demo/permissions.mp4) | Dana, Omar and Sam ask about the same West claim, and only Dana gets it back. | 79 s |
-| [Withheld small groups](docs/demo/suppression.mp4) | Sam, the analyst, asks for monthly counts and gets withheld cells where a month has too few claims. | 80 s |
-| [A question with no period](docs/demo/clarify.mp4) | Priya asks how much was paid, picks 2025 from the options the app offers and checks the query it ran. | 60 s |
-| [An instruction override](docs/demo/injection.mp4) | Dana tells the app to ignore its instructions and show every region's claims, and the gate refuses. | 26 s |
-| [An off-topic question](docs/demo/off-topic.mp4) | Dana asks for a banana bread recipe and is told what the app covers. | 21 s |
-| [A year outside the data](docs/demo/out-of-range.mp4) | Dana asks about 2022 and is told the data runs from January 2024 to June 2026. | 22 s |
-| [The dashboard by source](docs/demo/dashboard.mp4) | Priya reads the service dashboard for all requests, then for eval, replayed and browser requests alone. | 102 s |
+| [A figure and its SQL](https://cdn.jsdelivr.net/gh/jameswniu/questions-to-sql-intent-router@3e8a2d945a4ae478c348b2bec2dd9d17a9ee7578/docs/demo/ask.mp4) | Dana asks what was paid on Colorado hail claims in Q2 2025 and traces the figure to the SQL, its bound values and the row it returned. | 48 s |
+| [A policy answer and its source](https://cdn.jsdelivr.net/gh/jameswniu/questions-to-sql-intent-router@3e8a2d945a4ae478c348b2bec2dd9d17a9ee7578/docs/demo/policy.mp4) | Dana asks whether flood damage is covered, follows the citation to section 4.1 of the HO-2025 policy and reads the passage it came from. | 70 s |
+| [A total read from a scan](https://cdn.jsdelivr.net/gh/jameswniu/questions-to-sql-intent-router@3e8a2d945a4ae478c348b2bec2dd9d17a9ee7578/docs/demo/scan.mp4) | Priya asks for the total on a scanned invoice and checks it on the crop of the scan and in the payment query. | 55 s |
+| [Why losses rose](https://cdn.jsdelivr.net/gh/jameswniu/questions-to-sql-intent-router@3e8a2d945a4ae478c348b2bec2dd9d17a9ee7578/docs/demo/why.mp4) | Priya asks why West paid losses rose in Q2 2025, and the driver split shows the hail and Colorado shares the answer gives. | 95 s |
+| [One claim, three users](https://cdn.jsdelivr.net/gh/jameswniu/questions-to-sql-intent-router@3e8a2d945a4ae478c348b2bec2dd9d17a9ee7578/docs/demo/permissions.mp4) | Dana, Omar and Sam ask about the same West claim, and only Dana gets it back. | 79 s |
+| [Withheld small groups](https://cdn.jsdelivr.net/gh/jameswniu/questions-to-sql-intent-router@3e8a2d945a4ae478c348b2bec2dd9d17a9ee7578/docs/demo/suppression.mp4) | Sam, the analyst, asks for monthly counts and gets withheld cells where a month has too few claims. | 80 s |
+| [A question with no period](https://cdn.jsdelivr.net/gh/jameswniu/questions-to-sql-intent-router@3e8a2d945a4ae478c348b2bec2dd9d17a9ee7578/docs/demo/clarify.mp4) | Priya asks how much was paid, picks 2025 from the options the app offers and checks the query it ran. | 60 s |
+| [An instruction override](https://cdn.jsdelivr.net/gh/jameswniu/questions-to-sql-intent-router@3e8a2d945a4ae478c348b2bec2dd9d17a9ee7578/docs/demo/injection.mp4) | Dana tells the app to ignore its instructions and show every region's claims, and the gate refuses. | 26 s |
+| [An off-topic question](https://cdn.jsdelivr.net/gh/jameswniu/questions-to-sql-intent-router@3e8a2d945a4ae478c348b2bec2dd9d17a9ee7578/docs/demo/off-topic.mp4) | Dana asks for a banana bread recipe and is told what the app covers. | 21 s |
+| [A year outside the data](https://cdn.jsdelivr.net/gh/jameswniu/questions-to-sql-intent-router@3e8a2d945a4ae478c348b2bec2dd9d17a9ee7578/docs/demo/out-of-range.mp4) | Dana asks about 2022 and is told the data runs from January 2024 to June 2026. | 22 s |
+| [The dashboard by source](https://cdn.jsdelivr.net/gh/jameswniu/questions-to-sql-intent-router@3e8a2d945a4ae478c348b2bec2dd9d17a9ee7578/docs/demo/dashboard.mp4) | Priya reads the service dashboard for all requests, then for eval, replayed and browser requests alone. | 102 s |
 
 ## How it works
 
@@ -110,9 +110,9 @@ Scored 2026-09-25 on commit 0f54b59 over 3 runs, with claude-sonnet-5 writing, c
 
 ## Who sees what
 
-Two adjusters and the analyst ask about the same West claim in [this clip](docs/demo/permissions.mp4).
+Two adjusters and the analyst ask about the same West claim in [this clip](https://cdn.jsdelivr.net/gh/jameswniu/questions-to-sql-intent-router@3e8a2d945a4ae478c348b2bec2dd9d17a9ee7578/docs/demo/permissions.mp4).
 
-[<img src="docs/demo/permissions.poster.png" alt="Dana, the West adjuster, asks for the status of claim 105964 and reads it: open, a fire loss in Colorado, $33,474 paid." width="100%">](docs/demo/permissions.mp4)
+[<img src="docs/demo/permissions.poster.png" alt="Dana, the West adjuster, asks for the status of claim 105964 and reads it: open, a fire loss in Colorado, $33,474 paid." width="100%">](https://cdn.jsdelivr.net/gh/jameswniu/questions-to-sql-intent-router@3e8a2d945a4ae478c348b2bec2dd9d17a9ee7578/docs/demo/permissions.mp4)
 
 | Who asks | What they get |
 |---|---|
@@ -126,7 +126,7 @@ Two adjusters and the analyst ask about the same West claim in [this clip](docs/
 
 <img src="docs/demo/dashboard.png" alt="The operator dashboard's request, answer rate, first event and rating tiles, above the lookup route's latency against its p95 budget." width="100%">
 
-[The dashboard clip](docs/demo/dashboard.mp4) filters it to eval requests, then to the questions `make up` replays, then to browser requests, whose routes and outcomes include the questions asked in the clips above.
+[The dashboard clip](https://cdn.jsdelivr.net/gh/jameswniu/questions-to-sql-intent-router@3e8a2d945a4ae478c348b2bec2dd9d17a9ee7578/docs/demo/dashboard.mp4) filters it to eval requests, then to the questions `make up` replays, then to browser requests, whose routes and outcomes include the questions asked in the clips above.
 
 ## What it doesn't do
 
