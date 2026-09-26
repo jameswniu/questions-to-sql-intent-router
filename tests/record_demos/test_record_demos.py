@@ -91,7 +91,7 @@ def test_every_output_has_a_budget() -> None:
 
 
 def test_the_budgets_follow_the_storyboard() -> None:
-    assert rd.BUDGETS["ask.gif"] == rd.Budget(4 * rd.MB, 5 * rd.MB, 50)
+    assert rd.BUDGETS["ask.gif"] == rd.Budget(4 * rd.MB, 5 * rd.MB, 52)
     assert rd.BUDGETS["ask.mp4"].limit_bytes == 10 * rd.MB
     for clip in rd.BOUNDARY_CLIPS:
         assert rd.BUDGETS[f"{clip}.mp4"] == rd.Budget(3 * rd.MB, 6 * rd.MB, 120)
@@ -104,8 +104,8 @@ def test_a_file_over_its_limit_fails_and_one_over_its_target_warns() -> None:
     assert rd.check_budget("ask.gif", 4 * rd.MB, 45.0) == (None, None)
     failed, warned = rd.check_budget("ask.gif", 5 * rd.MB + 1, 45.0)
     assert failed and "limit" in failed and warned is None
-    failed, warned = rd.check_budget("ask.gif", 3 * rd.MB, 50.5)
-    assert failed and "50 s" in failed
+    failed, warned = rd.check_budget("ask.gif", 3 * rd.MB, 52.5)
+    assert failed and "52 s" in failed
     failed, warned = rd.check_budget("injection.mp4", 4 * rd.MB, 25.0)
     assert failed is None and warned and "target" in warned
     assert rd.check_budget("ask.poster.png", 400_000, None) == (
@@ -137,9 +137,27 @@ def test_the_manifest_keeps_other_clips_and_lists_clips_in_recording_order(tmp_p
 
 
 def test_the_page_script_gets_every_setting_it_names() -> None:
-    script = rd.demo_js("No API key")
-    assert "__" not in script
-    assert '"No API key"' in script
+    assert "__" not in rd.demo_js()
+
+
+def test_every_video_clip_opens_on_a_title_line() -> None:
+    assert set(rd.TITLES) == set(VIDEO_CLIPS)
+    for clip, title in rd.TITLES.items():
+        assert 0 < rd.caption_words(title) <= rd.CAPTION_MAX_WORDS, clip
+
+
+def test_on_screen_text_keeps_the_voice_rules() -> None:
+    shown = [text for beats in rd.CAPTIONS.values() for text in beats.values()] + list(rd.TITLES.values())
+    for text in shown:
+        for banned in ("\u2014", "\u2013", "--", "\u2192", "showcase", "production-grade", "golden", "source of truth"):
+            assert banned not in text.lower(), text
+
+
+def test_each_output_comes_out_its_own_width() -> None:
+    # The README's column shows the GIF, the posters and the still, so they share the GIF's framing.
+    assert rd.width_of("ask.mp4") == rd.width_of("policy.mp4") == 1920
+    assert rd.width_of("ask.gif") == rd.width_of("ask.poster.png") == rd.width_of("permissions.poster.png") == 900
+    assert rd.width_of("dashboard.png") == 1800
 
 
 def test_the_injected_css_leaves_answers_and_chart_labels_alone() -> None:

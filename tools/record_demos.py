@@ -11,18 +11,23 @@ pulls that image and the matching Playwright package. Every clip reads the page 
 when the page shows something else.
 
 The clips are paced for a first-time viewer. Each reading pause lasts at least SECONDS_PER_WORD for every word on
-screen, caption included, and starts only after scrolling stops. The recorder adds a caption strip, one highlight
-ring, measured scrolling and a click marker, and raises evidence, code and table text the app sets under 17 px to
-17 px. All of that lives in the recorder's own browser: the CSS is appended to the /static/style.css response and the
-script is injected before the page loads, so nothing under app/ changes and every answer shows as the app renders it.
+screen, caption included, and starts only after scrolling stops. The page is captured at twice its pixel density,
+frame by frame with when each was taken, and every move the recorder makes is logged. The finished files are then
+composited from both (tools/demo_render.py): the app in a window on a quiet stage with its caption under it, a
+spotlight on what is being read, and a pointer that glides to each control it presses. In the recorder's browser the
+only changes are measured scrolling, a soft fade above the composer and evidence, code and table text the app sets
+under 17 px raised to 17 px: the CSS is appended to the /static/style.css response and the script is injected before
+the page loads, so nothing under app/ changes and every answer shows as the app renders it.
 
 A file already in the output directory is never overwritten: the run stops before recording anything, so delete a
 file to record it again. manifest.json, which describes each clip, is the one file a run updates, one clip at a time.
 """
 
 import argparse
+import base64
 import contextlib
 import json
+import math
 import os
 import re
 import shlex
@@ -37,6 +42,11 @@ from datetime import UTC, datetime
 from decimal import ROUND_HALF_UP, Decimal
 from pathlib import Path
 from typing import Any, NamedTuple, NoReturn
+
+try:
+    from tools import demo_stage as stage
+except ModuleNotFoundError:  # run as a script, on the host or in the recording container, with tools/ on the path
+    import demo_stage as stage  # type: ignore[import-not-found, no-redef]
 
 ROOT = Path(__file__).resolve().parent.parent
 OUT = ROOT / "docs" / "demo"
@@ -71,33 +81,29 @@ OUTPUTS: dict[str, tuple[str, ...]] = {
 SECONDS_PER_WORD = 0.30
 READ_BASE_S = 2.0  # to find the new text on screen before reading it
 SECONDS_PER_CELL = 0.6  # for each number in a table the caption points at, on top of its labels
-VIEW = {"width": 900, "height": 700}
-TYPE_DELAY_MS = 75
+VIEW = {"width": stage.VIEW_W, "height": stage.VIEW_H}
+TYPE_DELAY_MS = 75  # the mean pause between keys, which each key jitters around (stage.typing_delays)
 QUESTION_HOLD_S = 1.0  # on the typed question before it is sent
 INTRO_HOLD_S = 2.0  # the minimums below are the storyboard's, and the formula often asks for longer
 IDENTITY_HOLD_S = 3.0
 ANSWER_HOLD_S = 8.0
 EVIDENCE_HOLD_S = 12.0
 CLICK_BEAT_S = 1.0
-PRESS_S = 0.15  # between pointer down and up, so the click marker shows before the page changes
+PRESS_S = 0.15  # between pointer down and up, so the ripple shows before the page changes
 SCROLL_MS = 700
 SCROLL_SETTLE_MS = 100
 END_HOLD_S = 2.0
 MAX_CLIP_S = 120
-GIF_MAX_CLIP_S = 50
+GIF_MAX_CLIP_S = 52  # the pointer's glides added about a second; the holds are never cut to fit
 GIF_MAX_BYTES = 5_000_000
-GIF_FPS = (12, 10, 8)  # tried in turn until the GIF fits its budget
-# The strip at the bottom of every frame, and the room a reading target keeps from it, the top bar and the composer.
-CAPTION_STRIP_PX = 64
+# Frames per second and palette colours, tried in turn until the GIF fits its budget: colours go before frame rate.
+GIF_TRIES = ((12, 256), (12, 160), (12, 96), (10, 256), (10, 128), (10, 96))
+SCREENCAST_QUALITY = 92  # the JPEG quality of each captured page frame
+# The room a reading target keeps from the top bar and the composer.
 BAND_CLEARANCE_PX = 14
 CAPTION_MAX_WORDS = 8
 FONT_FLOOR_PX = 17
 POSTER_TARGET_BYTES = 250_000
-# One palette per clip, built from the pixels that change. No dithering, so text keeps clean edges.
-GIF_FILTER = (
-    "fps={fps},scale={width}:-2:flags=lanczos,split[a][b];"
-    "[a]palettegen=stats_mode=diff[p];[b][p]paletteuse=dither=none:diff_mode=rectangle"
-)
 POSTER_FILTER = "split[a][b];[a]palettegen=max_colors=256:stats_mode=full[p];[b][p]paletteuse=dither=none"
 MB = 1_000_000
 
@@ -267,6 +273,21 @@ CAPTIONS: dict[str, dict[str, str]] = {
     },
 }
 
+# The line each clip's mp4 opens on, under the app's name, on what the clip shows.
+TITLES: dict[str, str] = {
+    "ask": "A paid-loss figure, traced to its SQL",
+    "policy": "A coverage answer, checked against the policy",
+    "scan": "A total read off a scanned invoice",
+    "why": "What drove a rise in paid losses",
+    "permissions": "Three users ask about one claim",
+    "suppression": "Small groups stay withheld from analysts",
+    "clarify": "A vague question gets a follow-up",
+    "injection": "An instruction override is refused",
+    "off-topic": "Questions outside claims are declined",
+    "out-of-range": "A year outside the data is named",
+    "dashboard": "The operator dashboard, by request source",
+}
+
 # SQL is read token by token: names, numbers, placeholders and operators each count as one unit.
 SQL_UNIT = re.compile(r"%s|[A-Za-z_][\w.$]*|\d[\w.,:-]*|<>|!=|<=|>=|\|\||[=<>+*/-]")
 
@@ -328,29 +349,17 @@ document.addEventListener("DOMContentLoaded", size);
 # Appended to the /static/style.css response in the recorder's browser only. The page's CSP allows styles from its
 # own origin and no inline <style>, which is why the rules ride on the app's own stylesheet.
 DEMO_CSS = f"""
-/* Recorder only: the caption strip with its mode label, the highlight ring and the click marker. */
-#demo-caption {{
-  position: fixed; inset: auto 0 0; height: {CAPTION_STRIP_PX}px; z-index: 10000; display: flex; align-items: center;
-  gap: 16px; padding: 12px 20px; background: #172033; color: #fff; border-top: 1px solid #354157;
-  font: 600 22px/1.3 system-ui, sans-serif; pointer-events: none;
+/* Recorder only. A marker the recorder reads back, to know these rules arrived. */
+:root {{ --demo-css: 1; }}
+/* A soft fade above the composer, so a line scrolled behind it dissolves instead of being cut in half. It starts where
+   the reading band ends and runs into the composer's own fade. */
+body.chat .composer {{
+  background: linear-gradient(to bottom, color-mix(in srgb, var(--canvas) 85%, transparent), var(--canvas) 10px);
 }}
-#demo-caption-text {{ white-space: nowrap; }}
-#demo-mode {{
-  flex: none; padding: 4px 8px; border: 1px solid #98a8c4; border-radius: 6px; font: 500 16px/1.3 system-ui, sans-serif;
-  white-space: nowrap;
+body.chat .composer::before {{
+  content: ""; position: absolute; left: 0; right: 0; bottom: 100%; height: {BAND_CLEARANCE_PX}px; pointer-events: none;
+  background: linear-gradient(to bottom, transparent, color-mix(in srgb, var(--canvas) 85%, transparent));
 }}
-#demo-ring {{
-  position: fixed; z-index: 9999; border: 3px solid #3451c6; border-radius: 8px; box-shadow: 0 0 0 2px #fff;
-  pointer-events: none;
-}}
-.demo-click {{
-  position: fixed; z-index: 10001; width: 28px; height: 28px; border: 3px solid #3451c6; border-radius: 50%;
-  background: rgb(52 81 198 / 12%); pointer-events: none; transform: translate(-50%, -50%);
-}}
-/* The composer and the end of each page move up above the strip, so nothing reads behind it. */
-body.chat .composer {{ bottom: {CAPTION_STRIP_PX}px; }}
-body.chat .thread {{ padding-bottom: {180 + CAPTION_STRIP_PX}px; }}
-body.dash .dashboard {{ padding-bottom: {56 + CAPTION_STRIP_PX}px; }}
 /* Evidence, code and table text the app sets at 15 or 16 px, raised to the floor. The answer itself is untouched. */
 details.evidence > summary, details.evidence h3, details.evidence pre, details.evidence code,
 details.evidence .role-note, details.evidence .legend, details.evidence ol.params, details.evidence .chunks li,
@@ -361,31 +370,17 @@ ol.citations, ol.citations::before, ol.citations li::before {{
   font-size: {FONT_FLOOR_PX}px !important;
 }}
 """
-# The caption strip, one highlight ring, measured scrolling and a click marker that follows real pointer presses, so
-# a key press never shows one. The caption survives a reload through sessionStorage, so a page change never flashes
-# an empty strip.
+# Measured scrolling, and a log of what the spotlight is on: the page reports each focused rect, each time a focused
+# rect moves with the page and each clear, stamped on the clock the captured frames are stamped on. The spotlight
+# itself is drawn over the captured frames later, so nothing is added to the page.
 DEMO_JS = """
 (() => {
-  const MODE = __MODE__, CLEARANCE = __CLEARANCE__, SCROLL_MS = __SCROLL_MS__, SETTLE_MS = __SETTLE_MS__;
-  const KEY = "demo-caption";
+  const CLEARANCE = __CLEARANCE__, SCROLL_MS = __SCROLL_MS__, SETTLE_MS = __SETTLE_MS__, PAD = __PAD__;
   const install = () => {
     if (window.demo || !document.body) return;
-    const make = (tag, id) => {
-      const node = document.createElement(tag);
-      if (id) node.id = id;
-      node.setAttribute("aria-hidden", "true");
-      return node;
-    };
-    const bar = make("div", "demo-caption");
-    const mode = make("span", "demo-mode");
-    const text = make("span", "demo-caption-text");
-    const ring = make("div", "demo-ring");
-    mode.textContent = MODE;
-    try { text.textContent = sessionStorage.getItem(KEY) || ""; } catch { text.textContent = ""; }
-    ring.hidden = true;
-    bar.append(mode, text);
-    document.body.append(bar, ring);
-    let targets = [];
+    let targets = [], shown = null;
+    const log = [];
+    const stamp = () => performance.timeOrigin + performance.now();
 
     // A chart's own box includes blank margins, so an SVG is measured by what it draws.
     const rectOf = (els) => {
@@ -406,12 +401,12 @@ DEMO_JS = """
     const band = () => {
       const topbar = document.querySelector(".topbar")?.getBoundingClientRect().bottom ?? 0;
       const composer = document.querySelector(".composer")?.getBoundingClientRect().top ?? innerHeight;
-      return { top: topbar + CLEARANCE, bottom: Math.min(composer, bar.getBoundingClientRect().top) - CLEARANCE };
+      return { top: topbar + CLEARANCE, bottom: composer - CLEARANCE };
     };
     const inBand = (els) => {
       const r = rectOf(els);
       if (!r) return false;
-      const b = pinned(els) ? { top: 0, bottom: bar.getBoundingClientRect().top } : band();
+      const b = pinned(els) ? { top: 0, bottom: innerHeight } : band();
       // Half a pixel of slack for subpixel layout; anything more is a real overlap.
       return r.top >= b.top - 0.5 && r.bottom <= b.bottom + 0.5 && r.left >= 8 && r.right <= innerWidth - 8;
     };
@@ -419,24 +414,37 @@ DEMO_JS = """
       const r = rectOf(els), b = band();
       return !!r && r.height <= b.bottom - b.top;
     };
-    const updateRing = () => {
-      const live = targets.filter((el) => el.isConnected);
-      const r = live.length ? rectOf(live) : null;
-      ring.hidden = !r;
-      // Six pixels out, so the ring clears text that starts at its element's edge. A control in the top bar gets
-      // the ring on its own edge, since the demo note sits just under the picker.
-      const out = live.length && pinned(live) ? 0 : 6;
-      if (r) Object.assign(ring.style, {
-        left: `${r.left - out}px`, top: `${r.top - out}px`, width: `${r.width + 2 * out}px`,
-        height: `${r.height + 2 * out}px`,
-      });
+    // The spotlight's rect: what it shows, with PAD around it, inside the page, as [left, top, right, bottom].
+    const spotRect = (els) => {
+      const r = rectOf(els.filter((el) => el.isConnected));
+      if (!r) return null;
+      const round = (value) => Math.round(value * 10) / 10;
+      return [
+        round(Math.max(0, r.left - PAD)), round(Math.max(0, r.top - PAD)),
+        round(Math.min(innerWidth, r.right + PAD)), round(Math.min(innerHeight, r.bottom + PAD)),
+      ];
     };
-    const caption = (value) => {
-      text.textContent = value;
-      try { sessionStorage.setItem(KEY, value); } catch { /* the strip still shows it */ }
-      if (text.getBoundingClientRect().right > innerWidth - 16) {
-        throw new Error(`the caption "${value}" is wider than the strip`);
-      }
+    // Where the page's content stops: the composer's top, or the bottom of the window on a page without one.
+    const floor = () => {
+      const top = document.querySelector(".composer")?.getBoundingClientRect().top ?? innerHeight;
+      return Math.round(top * 10) / 10;
+    };
+    const note = (kind, rect) => { log.push([stamp(), kind, rect, floor()]); shown = rect; };
+    const focus = (els) => {
+      targets = els;
+      const rect = spotRect(els);
+      note("focus", rect);
+      return rect;
+    };
+    const unfocus = () => {
+      if (targets.length || shown) note("clear", null);
+      targets = [];
+    };
+    // A focused rect the page moves, say as an answer streams in above it, is followed.
+    const follow = () => {
+      if (!targets.length) return;
+      const rect = spotRect(targets);
+      if (rect && (!shown || rect.some((value, i) => Math.abs(value - shown[i]) > 0.5))) note("track", rect);
     };
     const px = (value) => `${Math.round(value)} px`;
     const describe = (r, b) => `${px(r.top)} to ${px(r.bottom)}, and the band is ${px(b.top)} to ${px(b.bottom)}`;
@@ -446,7 +454,7 @@ DEMO_JS = """
       const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
       for (let node = walker.nextNode(); node; node = walker.nextNode()) {
         const host = node.parentElement;
-        if (!node.textContent.trim() || !host || host.closest(".topbar, .composer, #demo-caption")) continue;
+        if (!node.textContent.trim() || !host || host.closest(".topbar, .composer")) continue;
         const range = document.createRange();
         range.selectNodeContents(node);
         const boxes = host instanceof SVGElement ? [host.getBoundingClientRect()] : range.getClientRects();
@@ -468,10 +476,9 @@ DEMO_JS = """
       return end;
     };
     // Scrolls over SCROLL_MS, easing in and out, just far enough to show the targets whole: align "fit" moves as
-    // little as it can and "top" puts them at the top of the band. Resolves once the page has settled.
+    // little as it can and "top" puts them at the top of the band. The spotlight fades out while the page moves.
+    // Resolves once the page has settled.
     const reveal = async (els, align = "fit") => {
-      targets = [];
-      ring.hidden = true;
       if (pinned(els)) {
         if (!inBand(els)) throw new Error("the target in the top bar is hidden");
         return 0;
@@ -487,6 +494,7 @@ DEMO_JS = """
       const goal = delta > 0 ? Math.ceil(start + delta) : Math.floor(start + delta);
       const end = clear(start, Math.max(0, Math.min(goal, limit)), r, b, limit);
       if (Math.abs(end - start) >= 1) {
+        unfocus();
         const began = performance.now();
         await new Promise((resolve) => {
           const frame = (now) => {
@@ -538,27 +546,14 @@ DEMO_JS = """
       }
       return found;
     };
-    document.addEventListener("pointerdown", (event) => {
-      const dot = make("div");
-      dot.className = "demo-click";
-      dot.style.left = `${event.clientX}px`;
-      dot.style.top = `${event.clientY}px`;
-      document.body.append(dot);
-      dot.animate(
-        [
-          { opacity: 1, transform: "translate(-50%, -50%) scale(.65)" },
-          { opacity: 0, transform: "translate(-50%, -50%) scale(1.5)" },
-        ],
-        { duration: 450, easing: "ease-out" },
-      ).onfinish = () => dot.remove();
-    }, true);
-    addEventListener("scroll", updateRing, true);
-    addEventListener("resize", updateRing);
-    new ResizeObserver(updateRing).observe(document.body);
+    addEventListener("scroll", follow, true);
+    addEventListener("resize", follow);
+    new ResizeObserver(follow).observe(document.body);
     window.demo = {
-      caption, reveal, inBand, fits, band, screens, words, small,
-      focus(els) { targets = els; updateRing(); },
-      clear() { targets = []; ring.hidden = true; },
+      reveal, inBand, fits, band, screens, words, small, focus,
+      clear: unfocus,
+      // What the spotlight did since the last call, as [epoch ms, kind, rect or null, the page's floor].
+      drain: () => log.splice(0),
     };
   };
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", install, { once: true });
@@ -573,8 +568,8 @@ ANSWER_TEXT_JS = """el => [...el.querySelectorAll("p, li")].map((node) => {
 }).join("\\n")"""
 
 
-def demo_js(mode: str) -> str:
-    values = {"__MODE__": json.dumps(mode), "__CLEARANCE__": str(BAND_CLEARANCE_PX)}
+def demo_js() -> str:
+    values = {"__CLEARANCE__": str(BAND_CLEARANCE_PX), "__PAD__": str(stage.SPOT_PAD)}
     values |= {"__SCROLL_MS__": str(SCROLL_MS), "__SETTLE_MS__": str(SCROLL_SETTLE_MS)}
     script = DEMO_JS
     for key, value in values.items():
@@ -599,7 +594,6 @@ class Demo:
         self.page: Any = None
         self.user = ""
         self.users: list[str] = []
-        self.start_s = 0.0
         self.t0 = time.monotonic()
         self.length_s = 0.0
         self.caption_text = ""
@@ -611,38 +605,83 @@ class Demo:
         self.shown: dict[str, Any] = {}  # what the page showed, for the README
         self.poster_s: float | None = None
         self.answers: list[Any] = []  # every /ask response, in order
+        # What the finished files are composited from: the captured frames and a log of every move, by clip time.
+        self.t0_wall = time.time()
+        self.frames: list[tuple[float, str]] = []  # each frame's epoch time and file name
+        self.frames_dir = out / "frames" / name
+        self.capturing = False
+        self.caption_log: list[list[Any]] = []
+        self.spot_log: list[list[Any]] = []
+        self.cursor_log: list[list[Any]] = []
+        self.pointer: stage.Point | None = None
 
-    def open(self, user: str, path: str = "/", *, video: bool = True, scale: int = 1, devices: bool = True) -> Any:
-        options: dict[str, Any] = {"viewport": VIEW, "device_scale_factor": scale, "color_scheme": "light"}
+    def open(self, user: str, path: str = "/", *, video: bool = True, devices: bool = True) -> Any:
+        options: dict[str, Any] = {
+            "viewport": VIEW,
+            "device_scale_factor": stage.CAPTURE_SCALE,
+            "color_scheme": "light",
+        }
         options["reduced_motion"] = "no-preference"
-        if video:
-            options |= {"record_video_dir": str(self.out / "video"), "record_video_size": VIEW}
         self.context = self.browser.new_context(**options)
         self.context.add_init_script(FONT_JS)
         if devices:
             self.context.route("**/static/style.css", with_demo_css)
-            self.context.add_init_script(demo_js(self.mode))
+            self.context.add_init_script(demo_js())
         # Choosing the user before the tab opens starts the clip on that user, instead of on a reload.
         chosen = self.context.request.post(f"{self.base}/session", data={"user": user})
         self.check(chosen.status == 204, f"POST /session signs in as {user}", f"it answered {chosen.status}")
         self.user = user
         self.users.append(user)
-        opened = time.monotonic()  # the video starts with the tab, so this marks where the clip should start
         self.page = self.context.new_page()
         self.page.on("response", self.keep_answer)
         self.page.goto(self.base + path)
         self.page.evaluate("document.fonts.ready.then(() => true)")
         if devices:
-            self.caption(self.captions["who"])
-            # Two frames, so the strip is painted before the clip's first frame.
-            self.page.evaluate("new Promise((done) => requestAnimationFrame(() => requestAnimationFrame(done)))")
-            fixed = self.page.evaluate("getComputedStyle(document.getElementById('demo-caption')).position")
-            self.check(fixed == "fixed", "the recorder's CSS reached the page", f"the strip is {fixed}")
-        self.start_s = time.monotonic() - opened
-        self.t0 = time.monotonic()
+            marker = self.page.evaluate("getComputedStyle(document.documentElement).getPropertyValue('--demo-css')")
+            self.check(marker.strip() == "1", "the recorder's CSS reached the page", f"its marker reads {marker!r}")
         size = self.page.evaluate("getComputedStyle(document.documentElement).fontSize")
         self.check(size == "18px", "the root font is 18px", f"it is {size}")
+        if video:
+            self.capture()
+        self.t0, self.t0_wall = time.monotonic(), time.time()
+        if devices:
+            self.caption(self.captions["who"])
         return self.page
+
+    def capture(self) -> None:
+        """Starts capturing the page's frames at twice its pixel density, and waits for the first, so the clip opens
+        on the page as loaded. Each frame is written as it arrives, with the time it was taken."""
+        self.frames_dir.mkdir(parents=True, exist_ok=True)
+        size = {"width": VIEW["width"] * stage.CAPTURE_SCALE, "height": VIEW["height"] * stage.CAPTURE_SCALE}
+        self.page.screencast.start(on_frame=self.keep_frame, quality=SCREENCAST_QUALITY, size=size)
+        self.capturing = True
+        deadline = time.monotonic() + 5
+        while not self.frames and time.monotonic() < deadline:
+            self.page.wait_for_timeout(20)
+        self.check(bool(self.frames), "the page's frames are being captured")
+
+    def keep_frame(self, frame: Any) -> None:
+        name = f"{len(self.frames):06d}.jpg"
+        (self.frames_dir / name).write_bytes(frame["data"])
+        self.frames.append((float(frame["timestamp"]) / 1000, name))
+
+    def sleep(self, seconds: float) -> None:
+        """Waits on the page rather than the thread, since the page's frames are delivered on this thread."""
+        if seconds <= 0:
+            return
+        if self.page is None:
+            time.sleep(seconds)
+        else:
+            self.page.wait_for_timeout(seconds * 1000)
+
+    def clip_time(self, epoch_s: float) -> float:
+        """An epoch time, as the page and the captured frames stamp them, in seconds from the clip's start."""
+        return round(epoch_s - self.t0_wall, 3)
+
+    def drain(self) -> None:
+        """Moves what the page logged about the spotlight into the clip's log. Called before the page can reload."""
+        for stamp, kind, rect, floor in self.page.evaluate("demo.drain()"):
+            self.spot_log.append([self.clip_time(stamp / 1000), kind, rect, floor])
 
     def keep_answer(self, response: Any) -> None:
         if response.url.endswith("/ask") and response.request.method == "POST":
@@ -689,13 +728,14 @@ class Demo:
 
     def hold(self, seconds: float, kind: str = "hold") -> None:
         at = self.now()
-        time.sleep(seconds)
+        self.sleep(seconds)
         self.log(at, kind, seconds=round(seconds, 2))
 
     def caption(self, text: str) -> None:
+        """The caption line under the window from now on. It is drawn on the stage, so only its change is logged."""
         check_caption(text)
         if text != self.caption_text:
-            self.page.evaluate("text => demo.caption(text)", text)
+            self.caption_log.append([self.now(), text])
             self.caption_text = text
 
     def handles(self, targets: Any) -> list[Any]:
@@ -706,10 +746,14 @@ class Demo:
         return found
 
     def clear(self) -> None:
+        """Fades the spotlight out."""
         self.page.evaluate("demo.clear()")
+        self.drain()
 
-    def ring(self, targets: Any) -> None:
+    def spot(self, targets: Any) -> None:
+        """Puts the spotlight on the targets: it glides there from what it was on, or fades in on them."""
         self.page.evaluate("els => demo.focus(els)", self.handles(targets))
+        self.drain()
 
     def in_band(self, targets: Any) -> bool:
         return bool(self.page.evaluate("els => demo.inBand(els)", self.handles(targets)))
@@ -720,28 +764,56 @@ class Demo:
 
     def reveal(self, targets: Any, align: str = "fit") -> None:
         """Scrolls the targets whole into the band, and logs the move when there was one."""
-        at, began = self.now(), time.monotonic()
+        at, began, logged = self.now(), time.monotonic(), len(self.spot_log)
         moved = float(self.page.evaluate("([els, align]) => demo.reveal(els, align)", [self.handles(targets), align]))
+        self.drain()
         if moved:
             self.log(at, "scroll", seconds=round(time.monotonic() - began, 2), px=round(moved))
+            # A page just loaded has nothing focused to clear, though the spotlight still shows the last page's rect.
+            cleared = any(entry[1] == "clear" for entry in self.spot_log[logged:])
+            if not cleared and self.spot_log and self.spot_log[-1][1] != "clear":
+                self.spot_log.append([at, "clear", None, None])
+
+    def glide(self, point: stage.Point) -> None:
+        """Moves the pointer to point the way a hand would: eased in and out on a gentle arc over 0.5 to 0.7 s, in many
+        small moves, so the page sees each hover on the way. The drawn pointer follows the same path from the log."""
+        origin = self.pointer if self.pointer is not None else stage.pointer_start()
+        if self.pointer is None:
+            self.page.mouse.move(*origin)
+        self.pointer = point
+        far = stage.distance(origin, point)
+        if far < 1:
+            return
+        seconds = stage.glide_seconds(far)
+        at, began = self.now(), time.monotonic()
+        steps = max(8, round(seconds * stage.GLIDE_STEPS_PER_S))
+        for step in range(1, steps + 1):
+            self.sleep(began + seconds * step / steps - time.monotonic())
+            self.page.mouse.move(*stage.glide_point(origin, point, step / steps))
+        places = [round(value, 1) for value in (*origin, *point)]
+        self.cursor_log.append(["glide", at, round(at + seconds, 3), *places])
 
     def press(self, target: Any) -> None:
-        """A real pointer press at the target's centre, so the click marker shows where it lands. The target comes
-        into the band first: a press under the composer or the strip would land on them instead."""
+        """A real pointer press at the target's centre, once the pointer has glided there, so the ripple shows where
+        it lands. The target comes into the band first: a press under the composer would land on it instead."""
         if not self.in_band(target):
             self.reveal(target)
         box = target.bounding_box()
         self.check(box is not None, "the control to press is on screen")
-        self.page.mouse.move(box["x"] + box["width"] / 2, box["y"] + box["height"] / 2)
+        point = (box["x"] + box["width"] / 2, box["y"] + box["height"] / 2)
+        self.glide(point)
+        at = self.now()
         self.page.mouse.down()
-        time.sleep(PRESS_S)
+        self.sleep(PRESS_S)
         self.page.mouse.up()
-        # Then off to the empty margin, so no hover style lingers on what was pressed through the pauses after.
-        self.page.mouse.move(4, VIEW["height"] / 2)
+        self.cursor_log.append(["press", at, round(point[0], 1), round(point[1], 1)])
 
     def click(self, target: Any, caption: str) -> None:
-        self.clear()
+        """The spotlight moves to the control as the pointer glides to it and presses."""
         self.caption(caption)
+        if not self.in_band(target):
+            self.reveal(target)
+        self.spot(target)
         at = self.now()
         self.press(target)
         self.log(at, "click")
@@ -754,7 +826,7 @@ class Demo:
         minimum_s: float,
         *,
         label: str,
-        ring: Any = None,
+        spot: Any = None,
         context: Any = (),
         words: int | None = None,
         cells: int = 0,
@@ -762,9 +834,9 @@ class Demo:
         align: str = "fit",
         poster: bool = False,
     ) -> float:
-        """One reading beat: scroll the targets whole into the band, ring them, and hold for as long as reading them
-        takes. context, such as the question above an answer, comes into view too when there is room."""
-        self.clear()
+        """One reading beat: scroll the targets whole into the band, put the spotlight on them (or on spot), and hold
+        for as long as reading them takes. context, such as the question above an answer, comes into view too when
+        there is room."""
         self.caption(caption)
         shown = self.handles(targets)
         self.check(bool(shown), f"{label} is on the page")
@@ -772,13 +844,14 @@ class Demo:
         if whole is not shown and not self.page.evaluate("els => demo.fits(els)", whole):
             whole = shown
         self.reveal(whole, align)
-        self.ring(ring if ring is not None else shown)
+        self.spot(spot if spot is not None else shown)
         count = words if words is not None else int(self.page.evaluate("els => demo.words(els)", shown))
         hold = reading_hold(minimum_s, count, caption, cells=cells, labels=labels)
         at = self.now()
+        self.cursor_log.append(["rest", at])  # the pointer steps away while the viewer reads
         if poster and self.poster_s is None:
             self.poster_s = round(at + min(1.0, hold / 3), 2)
-        time.sleep(hold)
+        self.sleep(hold)
         self.check(self.in_band(shown), f"{label} stayed whole inside the reading band")
         self.log(at, "read", seconds=hold, minimum_s=minimum_s, words=count, cells=cells, target=label)
         return hold
@@ -834,15 +907,28 @@ class Demo:
         self.read(self.page.locator("#user"), caption, minimum_s, label="who is asking", words=words, poster=poster)
 
     def type_question(self, question: str, caption: str) -> None:
-        self.clear()
+        """The spotlight goes to the composer, the pointer presses into it and hides, and the question is typed the way
+        a person types it. The pointer then moves to Send while the typed question holds."""
         self.caption(caption)
+        self.spot(self.page.locator(".composer-inner"))
         box = self.page.locator("#q")
         self.press(box)
         at, began = self.now(), time.monotonic()
-        box.press_sequentially(question, delay=TYPE_DELAY_MS)
-        self.log(at, "type", seconds=round(time.monotonic() - began, 2), text=question)
+        due = 0.0
+        for char, pause in zip(question, stage.typing_delays(question, TYPE_DELAY_MS), strict=True):
+            due += pause / 1000
+            self.sleep(began + due - time.monotonic())
+            self.page.keyboard.type(char)
+        typed = round(time.monotonic() - began, 2)
+        self.cursor_log.append(["type", at, round(at + typed, 3)])
+        self.log(at, "type", seconds=typed, text=question)
         self.check(box.input_value() == question, "the composer holds the whole question", box.input_value())
-        self.hold(QUESTION_HOLD_S, "pause")
+        at, began = self.now(), time.monotonic()
+        send = self.page.locator("#send").bounding_box()
+        if send is not None:
+            self.glide((send["x"] + send["width"] / 2, send["y"] + send["height"] / 2))
+        self.sleep(QUESTION_HOLD_S - (time.monotonic() - began))
+        self.log(at, "pause", seconds=QUESTION_HOLD_S)
 
     def submit(self, question: str) -> Any:
         """Presses Send and waits for the whole answer. The footer goes on when the done event arrives, after the
@@ -872,10 +958,9 @@ class Demo:
 
     def switch(self, user: str, caption: str) -> None:
         """Picks another user, which starts a new session and reloads the page."""
-        self.clear()
         self.caption(caption)
         picker = self.page.locator("#user")
-        self.ring(picker)
+        self.spot(picker)
         at, began = self.now(), time.monotonic()
         with self.page.expect_navigation():
             self.press(picker)  # opens the native list, which a recording never shows
@@ -887,8 +972,10 @@ class Demo:
 
     def navigate(self, link: Any, caption: str) -> None:
         """Follows a link on the page, then gives the new page a beat before anything is read on it."""
-        self.clear()
         self.caption(caption)
+        if not self.in_band(link):
+            self.reveal(link)
+        self.spot(link)
         at, began = self.now(), time.monotonic()
         with self.page.expect_navigation():
             self.press(link)
@@ -897,14 +984,15 @@ class Demo:
         self.hold(CLICK_BEAT_S, "click-beat")
 
     def finish(self) -> None:
-        """Holds the last frame with its caption and ring, so a looping GIF doesn't jump straight back."""
+        """Holds the last frame with its caption and spotlight, so a looping GIF doesn't jump straight back."""
         self.hold(END_HOLD_S, "end")
         self.length_s = self.now()
-        video = self.page.video
+        self.drain()
+        if self.capturing:
+            self.page.screencast.stop()
+            self.capturing = False
         self.context.close()
         self.context = None
-        if video is not None:
-            video.save_as(str(self.out / f"{self.name}.webm"))
 
     def abandon(self) -> None:
         if self.context is not None:
@@ -915,7 +1003,6 @@ class Demo:
     def result(self) -> dict[str, Any]:
         return {
             "ok": True,
-            "start_s": round(self.start_s, 3),
             "length_s": self.length_s,
             "users": self.users,
             "questions": self.questions,
@@ -925,6 +1012,13 @@ class Demo:
             "facts": self.facts,
             "warnings": self.warnings,
             "shown": self.shown,
+            "stage": {
+                "mode": self.mode,
+                "frames": [[self.clip_time(taken), name] for taken, name in self.frames],
+                "captions": self.caption_log,
+                "spot": self.spot_log,
+                "cursor": self.cursor_log,
+            },
         }
 
 
@@ -975,7 +1069,14 @@ def split_share(demo: Demo, turn: Any, group: str) -> tuple[Any, str]:
 
 
 def read_sql_and_rows(
-    demo: Demo, sql: Any, rows: Any, caption: str, minimum_s: float, *, context: Any = (), poster: bool = False
+    demo: Demo,
+    sql: Any,
+    rows: Any,
+    caption: str,
+    minimum_s: float,
+    *,
+    context: Any = (),
+    poster: bool = False,
 ) -> None:
     """The query, its bound values and what it returned, held together when they fit the band, or the query and
     then its row, as the storyboard allows. context, such as the answer the row supports, shows too if it fits."""
@@ -989,7 +1090,8 @@ def read_sql_and_rows(
         return
     # The answer and its query fit together where the row does not join them, so the row gets a beat of its own.
     label = "the SQL and its values"
-    demo.read(content(sql), caption, minimum_s, label=label, words=sql_reading(sql), context=context, poster=poster)
+    words = sql_reading(sql)
+    demo.read(content(sql), caption, minimum_s, label=label, words=words, context=context, poster=poster)
     demo.read(content(rows), caption, 6.0, label="the row it returned", context=content(sql))
 
 
@@ -1014,7 +1116,8 @@ def clip_ask(demo: Demo, facts: Facts) -> None:
     row = rows.locator("table.rows td.num").first.inner_text()
     demo.check(dollars(row) == figure, "the answer's figure is the SQL row, rounded", f"{figure} and {row}")
     # The answer's figure stays in view above its row when the band has room for both.
-    read_sql_and_rows(demo, sql, rows, captions["evidence"], 18.0, context=turn.locator(".answer-text"), poster=True)
+    answer = turn.locator(".answer-text")
+    read_sql_and_rows(demo, sql, rows, captions["evidence"], 18.0, context=answer, poster=True)
     demo.note(f"hail: {figure}, the SQL row {row} rounded, bound to {', '.join(params)}, run as u_adj_west")
     demo.shown = {"figure": figure, "row": row}
     demo.finish()
@@ -1133,7 +1236,7 @@ def clip_why(demo: Demo, facts: Facts) -> None:
         labels = len(" ".join(table.locator("caption, thead th").all_inner_texts()).split()) + 1
         label = f"the {name} row with its table's headers"
         demo.read(
-            [*head, row], captions[key], EVIDENCE_HOLD_S, label=label, ring=row, cells=cells, labels=labels, poster=True
+            [*head, row], captions[key], EVIDENCE_HOLD_S, label=label, spot=row, cells=cells, labels=labels, poster=True
         )
     demo.note(f"why: hail {peril[1]}% and Colorado {state[1]}% of the rise, both rows shown, cites CAT-25-07")
     demo.shown = {"hail": hail_share, "colorado": colorado_share}
@@ -1225,7 +1328,7 @@ def clip_suppression(demo: Demo, facts: Facts) -> None:
             demo.check(cells == ["", "", ""], "a withheld row's num, den and n cells are empty", str(cells))
     numbers = sum(row.locator("td.num").count() for row in chosen)
     label = f"{count} rows under their header"
-    demo.read([header, *chosen], captions["rows"], 14.0, label=label, ring=chosen, cells=numbers, labels=len(names))
+    demo.read([header, *chosen], captions["rows"], 14.0, label=label, spot=chosen, cells=numbers, labels=len(names))
     demo.note(f"suppression: {len(hidden)} withheld and {len(kept)} published months, {count} rows shown")
     demo.shown = {"withheld": len(hidden), "published": len(kept)}
     demo.finish()
@@ -1359,10 +1462,28 @@ def clip_dashboard(demo: Demo, facts: Facts) -> None:
     demo.finish()
 
 
+def frame_still(demo: Demo, shot: bytes, height: int, caption: str) -> None:
+    """Frames a still of the page the way the GIF is framed, the browser bar above it and the caption strip under it,
+    at the density it was captured at, and writes it as out/dashboard.png."""
+    check_caption(caption)
+    total = stage.GIF_BAR_H + height + stage.GIF_FOOTER_H
+    viewport = {"width": stage.GIF_W, "height": total}
+    context = demo.browser.new_context(viewport=viewport, device_scale_factor=stage.CAPTURE_SCALE)
+    try:
+        page = context.new_page()
+        page.set_content(stage.still_html(base64.b64encode(shot).decode(), caption, demo.mode))
+        page.evaluate("document.fonts.ready.then(() => true)")
+        if not page.evaluate(stage.CAPTION_FITS_JS):
+            raise ClipFailed(f"the caption {caption!r} is wider than the still's caption strip")
+        page.screenshot(path=str(demo.out / "dashboard.png"), clip={"x": 0, "y": 0, **viewport})
+    finally:
+        context.close()
+
+
 def capture_dashboard(demo: Demo, facts: Facts) -> None:
     """Priya's /dashboard as a still of its tiles and first latency chart, at twice the pixel density so it stays
-    sharp when scaled. It has no caption strip: it is a picture of the page, not a clip."""
-    page = demo.open("priya", "/dashboard", video=False, scale=2, devices=False)
+    sharp when scaled, framed like the GIF with the dashboard clip's opening caption under it."""
+    page = demo.open("priya", "/dashboard", video=False, devices=False)
     heading = page.locator("h1").inner_text()
     demo.check(heading == "Service dashboard", "/dashboard shows the service dashboard", heading)
     labels = page.locator(".tile-label").all_inner_texts()
@@ -1375,9 +1496,9 @@ def capture_dashboard(demo: Demo, facts: Facts) -> None:
     page.evaluate("window.scrollTo(0, 0)")
     box = chart.bounding_box()
     demo.check(box is not None, "the first latency chart is drawn")
-    bottom = box["y"] + box["height"] + 16
-    clip = {"x": 0, "y": 0, "width": VIEW["width"], "height": bottom}
-    page.screenshot(path=str(demo.out / "dashboard.png"), full_page=True, clip=clip)
+    bottom = math.ceil(box["y"] + box["height"] + 16)
+    shot = page.screenshot(full_page=True, clip={"x": 0, "y": 0, "width": VIEW["width"], "height": bottom})
+    frame_still(demo, shot, bottom, CAPTIONS["dashboard"]["who"])
     demo.note(f"dashboard still: tiles {tiles}, cropped below the chart {title!r}")
     demo.shown = {"tiles": tiles, "chart": title}
     demo.abandon()
@@ -1399,8 +1520,50 @@ CLIPS: dict[str, Callable[[Demo, Facts], None]] = {
 }
 
 
+def draw_chrome(browser: Any, demo: Demo) -> None:
+    """Runs in the Playwright container: draws a clip's chrome into out/chrome/NAME, listed in its chrome.json. That is
+    the stage under each caption line, the window's stage with no caption, the title card, the bare stage, the GIF's
+    bar and a footer for each caption, and the pointer. A caption too wide for its line fails the clip."""
+    folder = demo.out / "chrome" / demo.name
+    folder.mkdir(parents=True, exist_ok=True)
+    context = browser.new_context(viewport={"width": stage.STAGE_W, "height": stage.STAGE_H}, device_scale_factor=1)
+    page = context.new_page()
+
+    def draw(name: str, markup: str, width: int, height: int, *, clear: bool = False, caption: str = "") -> str:
+        page.set_viewport_size({"width": width, "height": height})
+        page.set_content(markup)
+        page.evaluate("document.fonts.ready.then(() => true)")
+        if caption and not page.evaluate(stage.CAPTION_FITS_JS):
+            raise ClipFailed(f"the caption {caption!r} is wider than its line in {name}")
+        clip = {"x": 0, "y": 0, "width": width, "height": height}
+        page.screenshot(path=str(folder / name), clip=clip, omit_background=clear, scale="css")
+        return name
+
+    try:
+        index: dict[str, Any] = {"stages": {}, "footers": {}}
+        texts = list(dict.fromkeys(str(text) for _, text in demo.caption_log))
+        for number, text in enumerate(texts):
+            markup = stage.stage_html(text, demo.mode)
+            index["stages"][text] = draw(f"stage-{number:02d}.png", markup, stage.STAGE_W, stage.STAGE_H, caption=text)
+            markup = stage.gif_footer_html(text, demo.mode)
+            footer = draw(f"footer-{number:02d}.png", markup, stage.GIF_W, stage.GIF_FOOTER_H, caption=text)
+            index["footers"][text] = footer
+        index["window"] = draw("window.png", stage.stage_html(None, demo.mode), stage.STAGE_W, stage.STAGE_H)
+        index["title"] = draw("title.png", stage.title_html(TITLES[demo.name]), stage.STAGE_W, stage.STAGE_H)
+        index["empty"] = draw(
+            "empty.png", stage.stage_html(None, demo.mode, window=False), stage.STAGE_W, stage.STAGE_H
+        )
+        index["bar"] = draw("bar.png", stage.gif_bar_html(), stage.GIF_W, stage.GIF_BAR_H)
+        width, height = (side * stage.CURSOR_SPRITE_SCALE for side in stage.CURSOR_SIZE)
+        index["cursor"] = draw("cursor.png", stage.cursor_html(), width, height, clear=True)
+        (folder / "chrome.json").write_text(json.dumps(index, indent=2))
+    finally:
+        context.close()
+
+
 def record(clips: list[str], facts: Facts, mode: str, out: Path) -> int:
-    """Runs in the Playwright container: records each clip to out/NAME.webm and what it saw to out/results.json."""
+    """Runs in the Playwright container: records each clip's frames and chrome under out, and what it saw to
+    out/results.json."""
     from playwright.sync_api import sync_playwright  # type: ignore[import-not-found, unused-ignore]
 
     # Chromium's HSTS preload list covers the whole .app TLD, and the bare host name app matches it, so Chromium
@@ -1408,12 +1571,16 @@ def record(clips: list[str], facts: Facts, mode: str, out: Path) -> int:
     base = f"http://{socket.gethostbyname('app')}:8000"
     results: dict[str, Any] = {}
     with sync_playwright() as playwright:
-        browser = playwright.chromium.launch()
+        # The screencast sends frames at the screen's density, which only this flag raises, so the page is captured
+        # at twice its CSS size and its text stays crisp once scaled.
+        browser = playwright.chromium.launch(args=[f"--force-device-scale-factor={stage.CAPTURE_SCALE}"])
         for name in clips:
             print(f"{name}", flush=True)
             demo = Demo(browser, base, out, name, mode)
             try:
                 CLIPS[name](demo, facts)
+                if demo.frames:
+                    draw_chrome(browser, demo)
                 results[name] = demo.result()
             except Exception as exc:
                 demo.abandon()
@@ -1554,6 +1721,7 @@ def record_in_container(clips: list[str], facts: Facts, mode: str, network: str,
             # As the host user, so the recordings in the scratch directory are ours to delete.
             *("--user", f"{os.getuid()}:{os.getgid()}", "--env", "HOME=/tmp"),
             *("--volume", f"{Path(__file__).resolve()}:/demo/record_demos.py:ro", "--volume", f"{raw}:/out"),
+            *("--volume", f"{Path(stage.__file__).resolve()}:/demo/demo_stage.py:ro"),
             *(IMAGE, "python", "/demo/record_demos.py", "--inside", "--facts", json.dumps(facts), "--mode", mode),
             *clips,
         ],
@@ -1574,45 +1742,49 @@ def probe(path: Path) -> tuple[int, float]:
 
 
 def render(clip: str, name: str, result: dict[str, Any], raw: Path) -> Path:
-    """Turns a clip's recording into one output file in the scratch directory, starting once its page has loaded.
-    Playback is never sped up and no pause is cut: a GIF over budget drops frames per second, down to its floor."""
+    """Composites one output file for a clip into the scratch directory, from its captured frames, its chrome and its
+    log (tools/demo_render.py). Playback is never sped up and no pause is cut: a GIF over budget gives up palette
+    colours first, then frames per second, down to its floor."""
+    try:
+        from tools import demo_render
+    except ModuleNotFoundError:  # run as a script from tools/
+        import demo_render  # type: ignore[import-not-found, no-redef]
+
     target = raw / "rendered" / name
     target.parent.mkdir(exist_ok=True)
     if name == "dashboard.png":
         shutil.copyfile(raw / name, target)
         return target
-    if name.endswith(".poster.png"):
-        # The frame a viewer sees first in a list: the clip's first proof, never a loading state or half a question.
-        video = raw / "rendered" / f"{clip}.mp4"
-        at = f"{result['poster_s']:.2f}"
-        ffmpeg("-ss", at, "-i", str(video), "-frames:v", "1", str(target))
-        if target.stat().st_size > POSTER_TARGET_BYTES:
-            smaller = target.with_suffix(".256.png")
-            ffmpeg("-ss", at, "-i", str(video), "-frames:v", "1", "-vf", POSTER_FILTER, str(smaller))
-            if smaller.stat().st_size < target.stat().st_size:
-                smaller.replace(target)
-        return target
-    # From the loaded page to the end of the last hold. Closing the tab can leave a still tail, which is cut.
-    trim = (
-        "-i",
-        str(raw / f"{clip}.webm"),
-        "-ss",
-        f"{result['start_s']:.3f}",
-        "-t",
-        f"{result['length_s']:.3f}",
-        "-an",
-    )
-    if name.endswith(".mp4"):
-        x264 = ("-c:v", "libx264", "-preset", "slow", "-crf", "20", "-pix_fmt", "yuv420p", "-movflags", "+faststart")
-        ffmpeg(*trim, "-vf", "fps=25", *x264, str(target))
-        return target
-    sizes = []
-    for fps in GIF_FPS:
-        ffmpeg(*trim, "-vf", GIF_FILTER.format(fps=fps, width=VIEW["width"]), "-loop", "0", str(target))
-        sizes.append(f"{target.stat().st_size / MB:.2f} MB at {fps} fps")
-        if target.stat().st_size <= GIF_MAX_BYTES:
-            return target
-    fail(f"{name} stays over {GIF_MAX_BYTES / MB:g} MB: {', '.join(sizes)}. It is not cut or sped up to fit.")
+    plan = demo_render.Plan.load(result["stage"], result["length_s"])
+    frames, chrome = raw / "frames" / clip, raw / "chrome" / clip
+    try:
+        if name.endswith(".mp4"):
+            demo_render.write_mp4(plan, frames, chrome, target)
+        elif name.endswith(".gif"):
+            tried = demo_render.write_gif(plan, frames, chrome, target, GIF_TRIES, GIF_MAX_BYTES)
+            if target.stat().st_size > GIF_MAX_BYTES:
+                fail(
+                    f"{name} stays over {GIF_MAX_BYTES / MB:g} MB: {', '.join(tried)}. It is not cut or sped up to fit."
+                )
+        else:
+            # The frame a viewer sees first in a list: the clip's first proof, never a loading state or half a question.
+            demo_render.write_poster(plan, frames, chrome, result["poster_s"], target)
+            if target.stat().st_size > POSTER_TARGET_BYTES:
+                smaller = target.with_suffix(".256.png")
+                ffmpeg("-i", str(target), "-frames:v", "1", "-vf", POSTER_FILTER, str(smaller))
+                if smaller.stat().st_size < target.stat().st_size:
+                    smaller.replace(target)
+    except demo_render.RenderError as exc:
+        fail(f"{name}: {exc}")
+    return target
+
+
+def width_of(name: str) -> int:
+    """How wide an output file comes out: the stage for an mp4, the page for the GIF and the posters, which the README
+    shows in the same column, and twice the page for the dashboard still, framed the same way at twice the density."""
+    if name == "dashboard.png":
+        return stage.GIF_W * stage.CAPTURE_SCALE
+    return stage.STAGE_W if name.endswith(".mp4") else stage.GIF_W
 
 
 def measure(path: Path) -> dict[str, Any]:
@@ -1651,6 +1823,7 @@ def manifest_entry(
         "facts": result["facts"],
         "shown": result["shown"],
         "poster_s": result["poster_s"],
+        "title_s": stage.TITLE_S,  # the mp4 opens on a title card this long, so a beat at s plays at s + title_s
         "files": files,
     }
 
@@ -1716,13 +1889,14 @@ def orchestrate(clips: list[str], out: Path) -> int:
                 problem, warning = check_budget(name, files[name]["bytes"], files[name].get("seconds"))
                 if problem:
                     fail(problem)
-                if files[name]["width"] != VIEW["width"] * (2 if name == "dashboard.png" else 1):
-                    fail(f"{name} came out {files[name]['width']} px wide")
+                if files[name]["width"] != width_of(name):
+                    fail(f"{name} came out {files[name]['width']} px wide, not {width_of(name)}")
                 warnings += [warning] if warning else []
                 rendered.append(made)
             video = files.get(f"{clip}.mp4")
-            if video and abs(video["seconds"] - result["length_s"]) > 1.0:
-                warnings.append(f"{clip}.mp4 runs {video['seconds']} s, and its beats {result['length_s']} s")
+            framed = result["length_s"] + stage.TITLE_S + stage.OUTRO_S  # the title card and the fade out included
+            if video and abs(video["seconds"] - framed) > 1.0:
+                warnings.append(f"{clip}.mp4 runs {video['seconds']} s, and its beats and title {framed:.2f} s")
             clip_facts = {key: facts[key] for key in PREFLIGHT_KEYS.get(clip, ()) if key in facts}
             entries[clip] = manifest_entry(clip, result, files, {**context, "preflight": clip_facts}, known)
             results[clip] |= {"eval_ids": {q["question"]: q["eval_ids"] for q in entries[clip]["questions"]}}
