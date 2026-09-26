@@ -65,14 +65,14 @@ GLIDE_STEPS_PER_S = 40  # the page's own pointer moves this often along the path
 
 # The spotlight dims the rest of the page by SPOT_DIM towards SPOT_TINT, through a rounded cutout.
 SPOT_DIM = 0.5
-SPOT_TINT = (21, 24, 29)  # the app's own text colour
+SPOT_TINT = (15, 23, 42)  # the app's own text colour, its --foreground
 SPOT_RADIUS = 12.0
 SPOT_GROW = 14.0  # the cutout closes in by this much as it fades in
 SPOT_PAD = 6.0  # the cutout's room around what it shows
 # Outside the cutout, what lies just above the page's floor (the composer's top, or the window's bottom edge) fades
 # into the page's background over this many CSS pixels, so a line cut off there dissolves instead of peeking out.
 FLOOR_FADE_PX = 40.0
-CANVAS = (246, 247, 249)  # the app's --canvas
+CANVAS = (248, 250, 252)  # the app's page background, its --background
 
 # Typing: each key's pause is jittered between these, with a longer beat before a word or after punctuation.
 TYPE_MIN_MS, TYPE_MAX_MS = 45.0, 110.0
@@ -317,16 +317,24 @@ def distance(a: Point, b: Point) -> float:
     return math.dist(a, b)
 
 
-# The chrome, drawn by the recorder's Chromium as HTML so its type matches the app's. The font stack is the app's own.
+# The chrome, drawn by the recorder's Chromium as HTML. The captions, the title card and the GIF's caption strip are set
+# in Inter, the app's own face, which the recorder's image installs from Ubuntu's fonts-inter package. The browser
+# bars keep the system stack.
 FONT = 'system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif'
-# The app's brand mark, the chat bubble on its accent square, from .brand::before in app/web/static/style.css.
+CAPTION_FONT = f'"Inter", {FONT}'
+# The face each kind of caption text is drawn in, by PostScript name, which the recorder checks on every clip's chrome.
+FACES = {
+    ".caption .text": "Inter-Medium",
+    ".gif-footer .text": "Inter-Medium",
+    ".title .name": "Inter-Bold",
+    ".title .line": "Inter-Regular",
+}
+# The app's brand mark, the chat bubble on its accent square, from frontend/src/components/brand.ts.
 BRAND_PATHS = (
     "M3 3h10a1 1 0 0 1 1 1v6.2a1 1 0 0 1-1 1H8.2L5 13.8v-2.6H3a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z",
     "M5 6h6M5 8.4h3.6",
 )
 ACCENT = "#3b5bdb"
-# Liberation Sans, the app's face in the recorder's Chromium, has no medium weight, so a hairline stroke stands in.
-MEDIUM = "font-weight: 500; -webkit-text-stroke: 0.3px currentColor;"
 CAPTION_ROOM_PX = 24  # the least room between a caption and the mode label beside it
 
 BASE_CSS = f"""
@@ -358,12 +366,13 @@ body {{ width: {STAGE_W}px; height: {STAGE_H}px; background: linear-gradient(165
 .caption {{
   position: absolute; left: {WINDOW_X + 2}px; width: {CONTENT_W - 4}px; top: {CAPTION_Y}px; height: {CAPTION_H}px;
   display: flex; align-items: center; justify-content: space-between; gap: {CAPTION_ROOM_PX}px;
+  font-family: {CAPTION_FONT};
 }}
-.caption .text {{ font-size: 30px; {MEDIUM} color: #1b2030; white-space: nowrap; }}
+.caption .text {{ font-size: 30px; font-weight: 500; color: #1b2030; white-space: nowrap; }}
 .caption .mode {{ font-size: 20px; color: #8a93a2; white-space: nowrap; }}
 .title {{
   position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center;
-  gap: 24px;
+  gap: 24px; font-family: {CAPTION_FONT};
 }}
 .mark {{ display: flex; align-items: center; gap: 20px; }}
 .icon {{
@@ -384,8 +393,9 @@ GIF_CSS = f"""
 .gif-footer {{
   width: {GIF_W}px; height: {GIF_FOOTER_H}px; display: flex; align-items: center; justify-content: space-between;
   gap: {CAPTION_ROOM_PX}px; padding: 0 20px; background: #ffffff; border-top: 1px solid #e3e6eb;
+  font-family: {CAPTION_FONT};
 }}
-.gif-footer .text {{ font-size: 22px; {MEDIUM} color: #15181d; white-space: nowrap; }}
+.gif-footer .text {{ font-size: 22px; font-weight: 500; color: #15181d; white-space: nowrap; }}
 .gif-footer .mode {{ font-size: 15px; color: #7c8594; white-space: nowrap; }}
 .still {{ display: block; width: {GIF_W}px; }}
 """

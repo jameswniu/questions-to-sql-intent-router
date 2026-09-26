@@ -7,8 +7,8 @@ one shows.
 
 Needs the compose stack (make up) in no-key mode, Docker and ffmpeg. Chromium runs on the compose network in a local
 image built on the official Playwright image, pinned by digest, so nothing is installed on the host; the first run
-pulls that image and the matching Playwright package. Every clip reads the page after each answer and fails the run
-when the page shows something else.
+pulls that image, the matching Playwright package and Ubuntu's Inter font package, which the captions are set in.
+Every clip reads the page after each answer and fails the run when the page shows something else.
 
 The clips are paced for a first-time viewer. Each reading pause lasts at least SECONDS_PER_WORD for every word on
 screen, caption included, and starts only after scrolling stops. The page is captured at twice its pixel density,
@@ -17,7 +17,7 @@ composited from both (tools/demo_render.py): the app in a window on a quiet stag
 spotlight on what is being read, and a pointer that glides to each control it presses. In the recorder's browser the
 only changes are measured scrolling, a soft fade above the composer and evidence, code and table text the app sets
 under 17 px raised to 17 px: the CSS is appended to the /static/style.css response and the script is injected before
-the page loads, so nothing under app/ changes and every answer shows as the app renders it.
+the page loads, so nothing under app/ or frontend/ changes and every answer shows as the app renders it.
 
 A file already in the output directory is never overwritten: the run stops before recording anything, so delete a
 file to record it again. manifest.json, which describes each clip, is the one file a run updates, one clip at a time.
@@ -57,6 +57,8 @@ BASE_IMAGE = (
     "@sha256:72bd171a9ffc2b4b59532aaa6210e21014d07093120dc25528870c0b840da1f0"
 )
 PLAYWRIGHT = "1.63.0"
+# Inter, the app's face, for the captions and title cards, from Ubuntu's archive at a pinned version.
+INTER = "fonts-inter=4.0+ds-1"
 IMAGE = f"claims-qa-demos:{PLAYWRIGHT}"
 
 # The files each clip writes, in the order the clips are recorded. The dashboard comes after the chat clips, so its
@@ -132,6 +134,14 @@ BUDGETS: dict[str, Budget] = {
 
 # From data/users.yaml: how the user picker names each user a clip asks as.
 NAMES = {"dana": "Dana Reyes", "omar": "Omar Haddad", "sam": "Sam Whitfield", "priya": "Priya Natarajan"}
+# The chat page draws the user picker once it has read who is asking.
+PICKER = "#user"
+
+
+def dashboard_ready(source: str) -> str:
+    """The dashboard once it shows this source's numbers, all or a filter, and has no request in flight."""
+    return f"main.dashboard[aria-busy='false'][data-source='{source}']"
+
 
 HAIL = "How much did we pay on hail claims in Colorado in Q2 2025?"
 FLOOD = "Is flood damage covered?"
@@ -354,14 +364,17 @@ DEMO_CSS = f"""
 /* A soft fade above the composer, so a line scrolled behind it dissolves instead of being cut in half. It starts where
    the reading band ends and runs into the composer's own fade. */
 body.chat .composer {{
-  background: linear-gradient(to bottom, color-mix(in srgb, var(--canvas) 85%, transparent), var(--canvas) 10px);
+  background: linear-gradient(
+    to bottom, color-mix(in srgb, var(--background) 85%, transparent), var(--background) 10px
+  );
 }}
 body.chat .composer::before {{
   content: ""; position: absolute; left: 0; right: 0; bottom: 100%; height: {BAND_CLEARANCE_PX}px; pointer-events: none;
-  background: linear-gradient(to bottom, transparent, color-mix(in srgb, var(--canvas) 85%, transparent));
+  background: linear-gradient(to bottom, transparent, color-mix(in srgb, var(--background) 85%, transparent));
 }}
 /* Evidence, code and table text the app sets at 15 or 16 px, raised to the floor. The answer itself is untouched. */
-details.evidence > summary, details.evidence h3, details.evidence pre, details.evidence code,
+details.evidence > summary, details.evidence [role="tab"], details.evidence .waterfall,
+details.evidence h3, details.evidence pre, details.evidence code,
 details.evidence .role-note, details.evidence .legend, details.evidence ol.params, details.evidence .chunks li,
 details.evidence .chunks .score, details.evidence figure.scan figcaption, details.evidence .claims,
 details.evidence .claims .tag, details.evidence table.rows, details.evidence table.rows th,
@@ -615,7 +628,9 @@ class Demo:
         self.cursor_log: list[list[Any]] = []
         self.pointer: stage.Point | None = None
 
-    def open(self, user: str, path: str = "/", *, video: bool = True, devices: bool = True) -> Any:
+    def open(self, user: str, path: str = "/", *, ready: str = PICKER, video: bool = True, devices: bool = True) -> Any:
+        """Opens path as user. The page fetches who is asking, and the dashboard its numbers, after it loads, so the
+        clip starts once ready is on screen, never on a page still waiting for them."""
         options: dict[str, Any] = {
             "viewport": VIEW,
             "device_scale_factor": stage.CAPTURE_SCALE,
@@ -635,6 +650,7 @@ class Demo:
         self.page = self.context.new_page()
         self.page.on("response", self.keep_answer)
         self.page.goto(self.base + path)
+        self.page.locator(ready).wait_for()
         self.page.evaluate("document.fonts.ready.then(() => true)")
         if devices:
             marker = self.page.evaluate("getComputedStyle(document.documentElement).getPropertyValue('--demo-css')")
@@ -1049,6 +1065,15 @@ def content(box: Any) -> Any:
     return box.locator(":scope > *")
 
 
+def open_tab(demo: Demo, box: Any, caption: str) -> None:
+    """Clicks the tab that shows box, an evidence section from section(), unless it is showing already. Each kind of
+    evidence has a tab, and only the chosen one's section is on screen."""
+    if not box.is_visible():
+        demo.click(demo.page.locator(f'[id="{box.get_attribute("aria-labelledby")}"]'), caption)
+    heading = box.locator(":scope > h3").text_content()
+    demo.check(box.is_visible(), f"the {heading} tab is showing")
+
+
 def sql_reading(box: Any) -> int:
     """A SQL section read in units: the statement's tokens, then the words of its note, its legend and each value."""
     statement = str(box.locator("pre.sql").inner_text())
@@ -1066,33 +1091,6 @@ def split_share(demo: Demo, turn: Any, group: str) -> tuple[Any, str]:
     shown = row.locator("td").last.inner_text().strip()
     share = found(re.fullmatch(r"([\d,]+\.\d)%", shown), f"the driver split gives {group} a share of {shown!r}")
     return row, share.group(1).replace(",", "")
-
-
-def read_sql_and_rows(
-    demo: Demo,
-    sql: Any,
-    rows: Any,
-    caption: str,
-    minimum_s: float,
-    *,
-    context: Any = (),
-    poster: bool = False,
-) -> None:
-    """The query, its bound values and what it returned, held together when they fit the band, or the query and
-    then its row, as the storyboard allows. context, such as the answer the row supports, shows too if it fits."""
-    both = [content(sql), content(rows)]
-    above = demo.handles(context) if context else []
-    # One beat when everything fits, or when the query and row fit and the answer can't join the query alone.
-    if demo.fits([*above, *both]) or (demo.fits(both) and not demo.fits([*above, content(sql)])):
-        words = sql_reading(sql) + len(str(rows.inner_text()).split())
-        label = "the SQL, its values and its row"
-        demo.read(both, caption, minimum_s, label=label, words=words, context=context, poster=poster)
-        return
-    # The answer and its query fit together where the row does not join them, so the row gets a beat of its own.
-    label = "the SQL and its values"
-    words = sql_reading(sql)
-    demo.read(content(sql), caption, minimum_s, label=label, words=words, context=context, poster=poster)
-    demo.read(content(rows), caption, 6.0, label="the row it returned", context=content(sql))
 
 
 def clip_ask(demo: Demo, facts: Facts) -> None:
@@ -1115,9 +1113,12 @@ def clip_ask(demo: Demo, facts: Facts) -> None:
     demo.check(params == wanted, "the bound values are Q2 2025, Colorado and hail", str(params))
     row = rows.locator("table.rows td.num").first.inner_text()
     demo.check(dollars(row) == figure, "the answer's figure is the SQL row, rounded", f"{figure} and {row}")
-    # The answer's figure stays in view above its row when the band has room for both.
+    # The query and its row are on separate tabs, and the answer's figure stays in view above each when there is room.
     answer = turn.locator(".answer-text")
-    read_sql_and_rows(demo, sql, rows, captions["evidence"], 18.0, context=answer, poster=True)
+    label, words = "the SQL and its values", sql_reading(sql)
+    demo.read(content(sql), captions["evidence"], 18.0, label=label, words=words, context=answer, poster=True)
+    open_tab(demo, rows, captions["evidence"])
+    demo.read(content(rows), captions["evidence"], 6.0, label="the row it returned", context=answer)
     demo.note(f"hail: {figure}, the SQL row {row} rounded, bound to {', '.join(params)}, run as u_adj_west")
     demo.shown = {"figure": figure, "row": row}
     demo.finish()
@@ -1198,6 +1199,7 @@ def clip_scan(demo: Demo, facts: Facts) -> None:
     demo.check(params == [str(scan["claim_id"])], bound, str(params))
     ran_as = sql.locator(".role-note").inner_text()
     demo.check("u_supervisor" in ran_as, "the payment query ran on u_supervisor", ran_as)
+    open_tab(demo, sql, captions["sql"])
     demo.read(content(sql), captions["sql"], 14.0, label="the payment query and its claim", words=sql_reading(sql))
     demo.note(f"scan: {scan['doc_id']} total {total}, crop captioned {shown!r}")
     demo.shown = {"answer": text, "crop": shown}
@@ -1228,6 +1230,11 @@ def clip_why(demo: Demo, facts: Facts) -> None:
     demo.check(colorado_share == state.group(1), "the split gives Colorado the answer's share", both)
     legend = section(turn, "Driver split").locator("p.legend").first
     demo.read(legend, captions["legend"], 16.0, label="the split's legend")
+    # A table wider than its box scrolls sideways, and the Share column the rows are read for would be cut off.
+    wide = turn.locator("details.evidence table.split").evaluate_all(
+        "tables => tables.filter((t) => t.parentElement.scrollWidth > t.parentElement.clientWidth).length"
+    )
+    demo.check(wide == 0, "the driver split's tables fit their box", f"{wide} scroll sideways")
     for row, key, name in ((hail, "peril", "hail"), (colorado, "state", "Colorado")):
         # The row is read with its table's caption and headers, and only the row is ringed.
         table = row.locator("xpath=ancestor::table[1]")
@@ -1314,6 +1321,7 @@ def clip_suppression(demo: Demo, facts: Facts) -> None:
     header = rows.locator("table.rows thead")
     names = rows.locator("table.rows thead th").all_inner_texts()
     body = rows.locator("table.rows tbody tr")
+    open_tab(demo, rows, captions["rows"])
     # As many rows from the top as fit the band with the header, which must include both kinds.
     count = body.count()
     while count > 1 and not demo.fits([header, *[body.nth(i) for i in range(count)]]):
@@ -1370,6 +1378,7 @@ def clip_clarify(demo: Demo, facts: Facts) -> None:
     answer = turn.locator(".answer-text")
     label = "the resolved query and its year"
     demo.read(content(sql), captions["sql"], 14.0, label=label, words=sql_reading(sql), context=answer)
+    open_tab(demo, rows, captions["row"])
     demo.read(content(rows), captions["row"], 6.0, label="the returned value", context=answer)
     demo.note(f"clarify: {asked} {offered}; {YEAR_OPTION} answered {figure}")
     demo.shown = {"asked": asked, "options": options.all_inner_texts(), "answer": text}
@@ -1419,7 +1428,7 @@ def clip_dashboard(demo: Demo, facts: Facts) -> None:
     requests' routes and outcomes are read under the UI filter: they include the questions the other clips just
     asked, and there the outcomes chart fits the band, where all sources' outcomes run taller than it."""
     captions, counts = demo.captions, facts["sources"]
-    page = demo.open("priya", "/dashboard")
+    page = demo.open("priya", "/dashboard", ready=dashboard_ready("all"))
     heading = page.locator(".dashboard > h1")
     demo.check(heading.inner_text() == "Service dashboard", "/dashboard shows the service dashboard")
     scope = page.locator(".dashboard > p.muted")
@@ -1441,12 +1450,19 @@ def clip_dashboard(demo: Demo, facts: Facts) -> None:
     def panel(title: str) -> Any:
         return page.locator("section.panel", has=page.locator("h2", has_text=title)).locator("svg.chart")
 
+    def titled(chart: Any) -> list[Any]:
+        """A chart with its title, which sits above the SVG in the figure's caption and names the route or count."""
+        return [chart.locator("xpath=ancestor::figure[1]").locator(".chart-title"), chart]
+
     def show(source: str) -> None:
         demo.navigate(page.locator(f".filters a[href='/dashboard?source={source}']"), captions[f"to-{source}"])
+        # The filter swaps the numbers in place once they arrive, so the tiles are read only after they have.
+        page.locator(dashboard_ready(source)).wait_for()
         read_tiles(source, captions[source], 8.0)
 
     read_tiles(None, captions["all"], 8.0, poster=True)
-    demo.read(panel("Latency by route").first, captions["latency"], 14.0, label="one route's latency and budget")
+    latency = titled(panel("Latency by route").first)
+    demo.read(latency, captions["latency"], 14.0, label="one route's latency and budget")
     # A filter is shown only when its source has requests in the dashboard's window. An empty one proves nothing.
     for source in ("eval", "replay"):
         if counts.get(source):
@@ -1456,10 +1472,35 @@ def clip_dashboard(demo: Demo, facts: Facts) -> None:
     show("ui")  # the chat clips recorded before this one guarantee it browser requests, and read_tiles checks
     charts = panel("Traffic and outcomes")
     demo.check(charts.count() == 2, "Traffic and outcomes draws its two charts", str(charts.count()))
-    demo.read(charts.nth(0), captions["routes"], 6.0, label="browser requests by route")
-    demo.read(charts.nth(1), captions["outcomes"], 6.0, label="browser request outcomes")
+    demo.read(titled(charts.nth(0)), captions["routes"], 6.0, label="browser requests by route")
+    demo.read(titled(charts.nth(1)), captions["outcomes"], 6.0, label="browser request outcomes")
     demo.note(f"dashboard: tiles {demo.shown}")
     demo.finish()
+
+
+def rendered_fonts(page: Any, selector: str) -> list[str]:
+    """The fonts Chromium drew the element's text in, by PostScript name, as its DevTools protocol reports them."""
+    session = page.context.new_cdp_session(page)
+    try:
+        session.send("DOM.enable")
+        session.send("CSS.enable")
+        root = session.send("DOM.getDocument")["root"]["nodeId"]
+        node = session.send("DOM.querySelector", {"nodeId": root, "selector": selector})["nodeId"]
+        fonts = session.send("CSS.getPlatformFontsForNode", {"nodeId": node})["fonts"]
+        return [str(font["postScriptName"]) for font in fonts]
+    finally:
+        session.detach()
+
+
+def check_faces(demo: Demo, page: Any, seen: set[str]) -> None:
+    """Checks that the caption text on the page is drawn in the face stage.FACES names, once for each kind of caption,
+    so a font missing from the recorder's image fails the clip instead of falling back unseen."""
+    for selector, face in stage.FACES.items():
+        if selector in seen or not page.locator(selector).count():
+            continue
+        seen.add(selector)
+        drawn = rendered_fonts(page, selector)
+        demo.check(drawn == [face], f"the {selector} text is drawn in {face}", ", ".join(drawn) or "no font")
 
 
 def frame_still(demo: Demo, shot: bytes, height: int, caption: str) -> None:
@@ -1473,6 +1514,7 @@ def frame_still(demo: Demo, shot: bytes, height: int, caption: str) -> None:
         page = context.new_page()
         page.set_content(stage.still_html(base64.b64encode(shot).decode(), caption, demo.mode))
         page.evaluate("document.fonts.ready.then(() => true)")
+        check_faces(demo, page, set())
         if not page.evaluate(stage.CAPTION_FITS_JS):
             raise ClipFailed(f"the caption {caption!r} is wider than the still's caption strip")
         page.screenshot(path=str(demo.out / "dashboard.png"), clip={"x": 0, "y": 0, **viewport})
@@ -1483,7 +1525,7 @@ def frame_still(demo: Demo, shot: bytes, height: int, caption: str) -> None:
 def capture_dashboard(demo: Demo, facts: Facts) -> None:
     """Priya's /dashboard as a still of its tiles and first latency chart, at twice the pixel density so it stays
     sharp when scaled, framed like the GIF with the dashboard clip's opening caption under it."""
-    page = demo.open("priya", "/dashboard", video=False, devices=False)
+    page = demo.open("priya", "/dashboard", ready=dashboard_ready("all"), video=False, devices=False)
     heading = page.locator("h1").inner_text()
     demo.check(heading == "Service dashboard", "/dashboard shows the service dashboard", heading)
     labels = page.locator(".tile-label").all_inner_texts()
@@ -1523,16 +1565,19 @@ CLIPS: dict[str, Callable[[Demo, Facts], None]] = {
 def draw_chrome(browser: Any, demo: Demo) -> None:
     """Runs in the Playwright container: draws a clip's chrome into out/chrome/NAME, listed in its chrome.json. That is
     the stage under each caption line, the window's stage with no caption, the title card, the bare stage, the GIF's
-    bar and a footer for each caption, and the pointer. A caption too wide for its line fails the clip."""
+    bar and a footer for each caption, and the pointer. A caption too wide for its line, or drawn in another face than
+    Inter, fails the clip."""
     folder = demo.out / "chrome" / demo.name
     folder.mkdir(parents=True, exist_ok=True)
     context = browser.new_context(viewport={"width": stage.STAGE_W, "height": stage.STAGE_H}, device_scale_factor=1)
     page = context.new_page()
+    seen: set[str] = set()
 
     def draw(name: str, markup: str, width: int, height: int, *, clear: bool = False, caption: str = "") -> str:
         page.set_viewport_size({"width": width, "height": height})
         page.set_content(markup)
         page.evaluate("document.fonts.ready.then(() => true)")
+        check_faces(demo, page, seen)
         if caption and not page.evaluate(stage.CAPTION_FITS_JS):
             raise ClipFailed(f"the caption {caption!r} is wider than its line in {name}")
         clip = {"x": 0, "y": 0, "width": width, "height": height}
@@ -1644,7 +1689,7 @@ def app_mode(container: str) -> dict[str, Any]:
 def app_build(container: str) -> dict[str, Any]:
     """The commit the app was built from, and whether anything its image copies differs from that commit."""
     commit = run("git", "-C", str(ROOT), "rev-parse", "HEAD").strip()
-    inputs = ("app", "data", "db", "semantic", "evals/cases", "docker", "pyproject.toml", "uv.lock")
+    inputs = ("app", "frontend", "data", "db", "semantic", "evals/cases", "docker", "pyproject.toml", "uv.lock")
     dirty = bool(run("git", "-C", str(ROOT), "status", "--porcelain", "--", *inputs).strip())
     image = run("docker", "inspect", "--format", "{{.Image}}", container).strip()
     return {"commit": commit, "dirty": dirty, "image": image}
@@ -1713,7 +1758,8 @@ def preflight(clips: list[str], known: list[dict[str, Any]]) -> Facts:
 
 def record_in_container(clips: list[str], facts: Facts, mode: str, network: str, raw: Path) -> dict[str, Any]:
     install = f"pip install --no-cache-dir --root-user-action=ignore playwright=={PLAYWRIGHT}"
-    run("docker", "build", "--quiet", "--tag", IMAGE, "-", stdin=f"FROM {BASE_IMAGE}\nRUN {install}\n")
+    fonts = f"apt-get update && apt-get install -y --no-install-recommends {INTER} && rm -rf /var/lib/apt/lists/*"
+    run("docker", "build", "--quiet", "--tag", IMAGE, "-", stdin=f"FROM {BASE_IMAGE}\nRUN {install}\nRUN {fonts}\n")
     print(f"recording in {IMAGE}, built on {BASE_IMAGE}", flush=True)
     subprocess.run(
         [

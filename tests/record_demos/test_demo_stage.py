@@ -156,9 +156,9 @@ def test_the_stage_scales_the_app_text_to_24_px_and_fits_the_frame() -> None:
 
 
 def test_the_title_card_uses_the_app_brand_mark() -> None:
-    css = (ROOT / "app" / "web" / "static" / "style.css").read_text()
+    mark = (ROOT / "frontend" / "src" / "components" / "brand.ts").read_text()
     for path in stage.BRAND_PATHS:
-        assert path in css
+        assert path in mark
     assert "Claims Q&amp;A" in stage.title_html("A paid-loss figure, traced to its SQL")
 
 
