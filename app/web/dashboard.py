@@ -3,14 +3,13 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from decimal import Decimal
 from functools import cache
-from typing import Any
+from typing import Any, TypedDict
 
 import yaml
-from markupsafe import Markup
 
 from app import db
 from app.semantic.layer import LAYER_PATH
-from app.web.charts import ACCENT, ACCENT_LIGHT, GOOD, NEUTRAL, REFUSAL, Bar, Budget, hbar
+from app.web.charts import Bar, Budget, Chart, Tone, hbar
 
 WINDOW_DAYS = 30
 SOURCES = {"ui": "UI", "eval": "Eval", "replay": "Replay"}
@@ -164,14 +163,69 @@ def dollars(value: float) -> str:
     return f"${value:.4f}"
 
 
-def page(data: DashboardData, source: str | None) -> dict[str, Any]:
-    """Everything the dashboard template shows, with the charts already drawn."""
+class Filter(TypedDict):
+    label: str
+    source: str | None
+    href: str
+    current: bool
+
+
+class Tile(TypedDict):
+    label: str
+    value: str
+
+
+class Noted(TypedDict):
+    """A chart that may not be drawn yet, and the sentence shown with it or in its place."""
+
+    chart: Chart | None
+    note: str
+
+
+class EvalRunView(TypedDict):
+    split: str
+    mode: str
+    date: str
+    commit: str | None
+
+
+class EvalMetric(TypedDict):
+    metric: str
+    # One value per run, in the order of the runs.
+    values: list[str]
+
+
+class EvalTable(TypedDict):
+    runs: list[EvalRunView]
+    rows: list[EvalMetric]
+
+
+class Page(TypedDict):
+    """Everything the dashboard shows, worded and formatted, with each chart's bars and axis worked out."""
+
+    scope: str
+    source: str | None
+    filters: list[Filter]
+    requests: int
+    tiles: list[Tile]
+    latency: list[Chart]
+    by_route: Chart | None
+    outcomes: Chart | None
+    verifier: Noted
+    feedback: Chart | None
+    cost: Noted
+    evals: EvalTable | None
+
+
+def page(data: DashboardData, source: str | None) -> Page:
     scope = "all sources" if source is None else f"{SOURCES[source]} requests only"
-    filters = [{"label": "All", "href": "/dashboard", "current": source is None}] + [
-        {"label": label, "href": f"/dashboard?source={key}", "current": source == key} for key, label in SOURCES.items()
+    choices: list[tuple[str, str | None]] = [("All", None), *((label, key) for key, label in SOURCES.items())]
+    filters: list[Filter] = [
+        {"label": label, "source": key, "href": _href(key), "current": source == key} for label, key in choices
     ]
     return {
         "scope": f"Last {WINDOW_DAYS} days, {scope}.",
+        "source": source,
         "filters": filters,
         "requests": data.requests,
         "tiles": _tiles(data),
@@ -185,6 +239,10 @@ def page(data: DashboardData, source: str | None) -> dict[str, Any]:
     }
 
 
+def _href(source: str | None) -> str:
+    return "/dashboard" if source is None else f"/dashboard?source={source}"
+
+
 def _route(route: str | None) -> str:
     return "Not routed" if route is None else ROUTE_ORDER.get(route, route.replace("_", " ").capitalize())
 
@@ -194,24 +252,25 @@ def _ordered(routes: Sequence[RouteStats]) -> list[RouteStats]:
     return sorted(routes, key=lambda r: (r.route is None, order.index(r.route) if r.route in order else 99))
 
 
-def _chart(title: str, bars: list[Bar], x_label: str = "Requests") -> Markup | None:
+def _chart(title: str, bars: list[Bar], x_label: str = "Requests") -> Chart | None:
     if not bars:
         return None
-    return Markup(hbar(title, bars, x_label=x_label, value_format=whole, integer=True))
+    return hbar(title, bars, x_label=x_label, value_format=whole, integer=True)
 
 
-def _tiles(data: DashboardData) -> list[tuple[str, str]]:
+def _tiles(data: DashboardData) -> list[Tile]:
     answered = sum(o.requests for o in data.outcomes if o.outcome == ANSWERED)
     votes = sum(data.feedback.values())
+    first = seconds(data.first_event_p50 / 1000) if data.first_event_p50 is not None else "None"
     return [
-        ("Requests", whole(data.requests)),
-        ("Answered", f"{answered / data.requests:.0%}" if data.requests else "None yet"),
-        ("Median first event", seconds(data.first_event_p50 / 1000) if data.first_event_p50 is not None else "None"),
-        ("Rated useful", f"{data.feedback.get(1, 0)} of {votes}" if votes else "No ratings yet"),
+        {"label": "Requests", "value": whole(data.requests)},
+        {"label": "Answered", "value": f"{answered / data.requests:.0%}" if data.requests else "None yet"},
+        {"label": "Median first event", "value": first},
+        {"label": "Rated useful", "value": f"{data.feedback.get(1, 0)} of {votes}" if votes else "No ratings yet"},
     ]
 
 
-def _latency(routes: Sequence[RouteStats]) -> list[Markup]:
+def _latency(routes: Sequence[RouteStats]) -> list[Chart]:
     drawn = []
     for r in _ordered(routes):
         limit = budgets().get(r.route or "")
@@ -219,15 +278,14 @@ def _latency(routes: Sequence[RouteStats]) -> list[Markup]:
             continue
         first_p50, first_p95 = (r.first_p50 or 0) / 1000, (r.first_p95 or 0) / 1000
         bars = [
-            Bar("First event, p50", first_p50, ACCENT_LIGHT),
-            Bar("First event, p95", first_p95, ACCENT_LIGHT),
+            Bar("First event, p50", first_p50, "accent-light"),
+            Bar("First event, p95", first_p95, "accent-light"),
             Bar("Total, p50", r.total_p50 / 1000),
             Bar("Total, p95", r.total_p95 / 1000),
         ]
         budget = Budget(limit, f"p95 budget {limit:g} s")
         title = f"{_route(r.route)}, {whole(r.requests)} {'request' if r.requests == 1 else 'requests'}"
-        svg = hbar(title, bars, x_label="Seconds", value_format=seconds, tick_format=tick, budget=budget)
-        drawn.append(Markup(svg))
+        drawn.append(hbar(title, bars, x_label="Seconds", value_format=seconds, tick_format=tick, budget=budget))
     return drawn
 
 
@@ -235,30 +293,30 @@ def _outcome_bars(outcomes: Sequence[OutcomeCount]) -> list[Bar]:
     bars = []
     for o in outcomes:
         if o.outcome == "refused":
-            bars.append(Bar(f"Refused, {(o.refusal_reason or 'no reason').replace('_', ' ')}", o.requests, REFUSAL))
+            bars.append(Bar(f"Refused, {(o.refusal_reason or 'no reason').replace('_', ' ')}", o.requests, "bad"))
             continue
         name = o.outcome or "unknown"
-        color = GOOD if name == ANSWERED else NEUTRAL if name in NOT_SERVED else ACCENT
-        bars.append(Bar(OUTCOMES.get(name, name.replace("_", " ").capitalize()), o.requests, color))
+        tone: Tone = "good" if name == ANSWERED else "neutral" if name in NOT_SERVED else "accent"
+        bars.append(Bar(OUTCOMES.get(name, name.replace("_", " ").capitalize()), o.requests, tone))
     return bars
 
 
-def _verifier(stats: VerifierStats) -> dict[str, Any]:
+def _verifier(stats: VerifierStats) -> Noted:
     if not stats.answers:
         return {"chart": None, "note": "No answer has been through the verifier yet."}
-    bars = [Bar("Claims kept", stats.kept, GOOD), Bar("Claims cut", stats.cut, REFUSAL)]
+    bars = [Bar("Claims kept", stats.kept, "good"), Bar("Claims cut", stats.cut, "bad")]
     note = f"The verifier retried {stats.retried:,} of {stats.answers:,} answers ({stats.retried / stats.answers:.0%})."
     return {"chart": _chart("Claims checked against the evidence", bars, x_label="Claims"), "note": note}
 
 
-def _feedback(votes: Mapping[int, int]) -> Markup | None:
+def _feedback(votes: Mapping[int, int]) -> Chart | None:
     if not votes:
         return None
-    bars = [Bar("Useful", votes.get(1, 0), GOOD), Bar("Not useful", votes.get(-1, 0), REFUSAL)]
+    bars = [Bar("Useful", votes.get(1, 0), "good"), Bar("Not useful", votes.get(-1, 0), "bad")]
     return _chart("Ratings", bars, x_label="Answers rated")
 
 
-def _cost(routes: Sequence[RouteStats]) -> dict[str, Any]:
+def _cost(routes: Sequence[RouteStats]) -> Noted:
     priced = [r for r in _ordered(routes) if r.live_requests and r.cost_avg is not None]
     if not any(r.live_requests for r in routes):
         return {"chart": None, "note": "Zero so far. Every request ran in no-key mode, which calls no model."}
@@ -266,7 +324,7 @@ def _cost(routes: Sequence[RouteStats]) -> dict[str, Any]:
         return {"chart": None, "note": "The model in use has no price in app/telemetry.py, so cost is unknown."}
     bars = [Bar(_route(r.route), float(r.cost_avg or 0)) for r in priced]
     chart = hbar("Average cost per question", bars, x_label="US dollars", value_format=dollars)
-    return {"chart": Markup(chart), "note": "Estimated from token counts at Anthropic list prices."}
+    return {"chart": chart, "note": "Estimated from token counts at Anthropic list prices."}
 
 
 def _flatten(metrics: Mapping[str, Any], prefix: str = "") -> dict[str, Any]:
@@ -289,10 +347,15 @@ def _metric(value: Any) -> str:
     return "" if value is None else str(value)[:40]
 
 
-def _evals(runs: Sequence[EvalRun], max_rows: int = 24) -> dict[str, Any] | None:
+def _evals(runs: Sequence[EvalRun], max_rows: int = 24) -> EvalTable | None:
     if not runs:
         return None
     flat = [_flatten(run.metrics) for run in runs]
     names = sorted({name for metrics in flat for name in metrics})[:max_rows]
-    headers = [{"split": r.split, "mode": r.mode, "date": f"{r.at:%Y-%m-%d}", "commit": r.git_commit} for r in runs]
-    return {"runs": headers, "rows": [(name, [_metric(metrics.get(name)) for metrics in flat]) for name in names]}
+    headers: list[EvalRunView] = [
+        {"split": r.split, "mode": r.mode, "date": f"{r.at:%Y-%m-%d}", "commit": r.git_commit} for r in runs
+    ]
+    rows: list[EvalMetric] = [
+        {"metric": name, "values": [_metric(metrics.get(name)) for metrics in flat]} for name in names
+    ]
+    return {"runs": headers, "rows": rows}

@@ -55,13 +55,24 @@ scores = list(reranker.rerank("hail deductible", ["the hail deductible is 2% of 
 assert scores[0] > scores[1], scores
 PY
 
+# The browser app is built here, so make up needs only Docker. Its packages are the committed lockfile's, installed
+# without running their install scripts, and the files it writes are the same on any platform, so it builds natively.
+FROM --platform=$BUILDPLATFORM node:24.21.0-trixie-slim@sha256:8ec5d7557396cfe32d21c3f9c13072355ceab22b584578ca4bb28af31120cffe AS web
+WORKDIR /frontend
+COPY frontend/package.json frontend/package-lock.json frontend/.npmrc ./
+RUN --mount=type=cache,target=/root/.npm npm ci --ignore-scripts
+COPY frontend/ ./
+RUN npm run build
+
 FROM base AS app-base
 RUN groupadd --system --gid 10001 app && useradd --system --uid 10001 --gid app --home-dir /srv app
 ENV EMBED_MODEL_PATH=/opt/models/bge-small-en-v1.5 \
     RERANK_MODEL_PATH=/opt/models/ms-marco-MiniLM-L-6-v2 \
     FASTEMBED_CACHE_PATH=/opt/models \
-    HF_HUB_OFFLINE=1
+    HF_HUB_OFFLINE=1 \
+    WEB_DIST=/opt/web
 COPY --from=models /opt/models /opt/models
+COPY --from=web /frontend/dist /opt/web
 WORKDIR /srv
 COPY app ./app
 COPY data ./data

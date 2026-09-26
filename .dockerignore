@@ -10,3 +10,6 @@ var
 .drill
 .scrub-terms
 tools/.recordings
+**/node_modules
+frontend/dist
+frontend/coverage

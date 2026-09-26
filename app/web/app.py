@@ -1,6 +1,8 @@
 import math
+import os
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
+from functools import cache
 from pathlib import Path
 from typing import Annotated, Any, Literal, cast
 from uuid import UUID
@@ -9,12 +11,11 @@ from fastapi import Depends, FastAPI, HTTPException, Query, Request
 from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse, Response
 from fastapi.sse import EventSourceResponse, ServerSentEvent
 from fastapi.staticfiles import StaticFiles
-from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel, Field
 from starlette.types import ASGIApp, Receive, Scope, Send
 
 from app import db, requestlog, telemetry
-from app.config import Backend, settings
+from app.config import ROOT, Backend, settings
 from app.identity import Principal, principal_for, principals
 from app.llm import client as live
 from app.pipeline import ask as run_pipeline
@@ -24,13 +25,13 @@ from app.web import auth, dashboard, session
 from app.web.ratelimit import RateLimiter
 from app.web.stream import AskFn, Recorder, answer_stream
 
-HERE = Path(__file__).parent
 QUESTIONS_PER_MINUTE = 20
 CSP = (
     "default-src 'self'; img-src 'self' blob: data:; style-src 'self'; script-src 'self'; connect-src 'self'; "
     "object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'"
 )
 NOT_FOUND = {"detail": "Not found"}
+NOT_BUILT = "The web app has not been built. Run make frontend-build, or make up, which builds it in Docker."
 SIGN_IN: dict[auth.Mode, str] = {
     "demo": "Choose who you are asking as at the top of the page, then try again.",
     "header": "You are not signed in, or your account has no access to this service.",
@@ -63,6 +64,27 @@ class RevalidatedFiles(StaticFiles):
         response = super().file_response(*args, **kwargs)
         response.headers["Cache-Control"] = "no-cache"
         return response
+
+
+def web_dist() -> Path:
+    """Where the built browser app is: WEB_DIST, which the image sets, or frontend/dist after make frontend-build."""
+    return Path(os.environ.get("WEB_DIST") or ROOT / "frontend" / "dist")
+
+
+@cache
+def _files(root: Path) -> StaticFiles:
+    return RevalidatedFiles(directory=root, check_dir=False)
+
+
+class BuiltAssets:
+    """The browser app's scripts, stylesheet and fonts under /static, from the build in app.state.web_dist."""
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        root = cast(Path, scope["app"].state.web_dist) / "static"
+        if not root.is_dir():
+            await JSONResponse(NOT_FOUND, status_code=404)(scope, receive, send)
+            return
+        await _files(root)(scope, receive, send)
 
 
 class ProxyGate:
@@ -101,8 +123,8 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 app = FastAPI(title="claims-qa", lifespan=lifespan)
 app.add_middleware(ProxyGate)
 app.state.limiter = RateLimiter(QUESTIONS_PER_MINUTE, 60.0)
-app.mount("/static", RevalidatedFiles(directory=HERE / "static"), name="static")
-templates = Jinja2Templates(directory=HERE / "templates")
+app.state.web_dist = web_dist()
+app.mount("/static", BuiltAssets(), name="static")
 
 
 @app.exception_handler(NotSignedIn)
@@ -198,22 +220,70 @@ def _page(response: Response) -> Response:
     return response
 
 
-@app.get("/", response_class=HTMLResponse)
-async def chat(request: Request) -> Response:
-    demo = identity_mode(request) == "demo"
+def _index(request: Request) -> Response:
+    """The browser app's one page. It draws the chat or the dashboard from the path, with data from /api."""
+    try:
+        html = (cast(Path, request.app.state.web_dist) / "index.html").read_bytes()
+    except FileNotFoundError:
+        return PlainTextResponse(NOT_BUILT, status_code=503)
+    return _page(HTMLResponse(html, headers={"Cache-Control": "no-cache"}))
+
+
+def page_session(request: Request) -> tuple[session.Session, bool]:
+    """Who a page load asks as, and whether the session cookie needs setting. In demo mode a visitor without a
+    session is signed in as the first demo user. Behind the proxy it is the proxy's user, or NotSignedIn."""
     cookie = session.decode(request.cookies.get(session.COOKIE))
-    if not demo:
+    if identity_mode(request) != "demo":
         current = current_session(request)
     elif cookie is None:
         current = session.start(next(iter(principals())))
     else:
         current = cookie
-    users = list(principals().values()) if demo else []
-    context = {"me": principal_for(current.user_id), "users": users, "demo": demo}
-    response = templates.TemplateResponse(request, "chat.html", context)
-    if current != cookie:
+    return current, current != cookie
+
+
+@app.get("/", response_class=HTMLResponse)
+async def chat(request: Request) -> Response:
+    current, fresh = page_session(request)
+    response = _index(request)
+    if fresh:
         session.set_cookie(response, current, secure=request.url.scheme == "https")
-    return _page(response)
+    return response
+
+
+class Person(BaseModel):
+    user_id: str
+    name: str
+    title: str
+
+
+class Me(Person):
+    # The login every query this user causes runs on, which row-level security reads.
+    db_role: str
+    ops: bool
+
+
+class SessionView(BaseModel):
+    me: Me
+    demo: bool
+    # The users the demo picker offers. Behind the proxy there is no picker, and no one else is named.
+    users: list[Person]
+
+
+@app.get("/api/session")
+async def session_view(request: Request, response: Response) -> SessionView:
+    current, fresh = page_session(request)
+    if fresh:
+        session.set_cookie(response, current, secure=request.url.scheme == "https")
+    response.headers["Cache-Control"] = "no-store"
+    me = principal_for(current.user_id)
+    demo = identity_mode(request) == "demo"
+    users = [Person(user_id=p.user_id, name=p.name, title=p.title) for p in principals().values()] if demo else []
+    return SessionView(
+        me=Me(user_id=me.user_id, name=me.name, title=me.title, db_role=me.db_role, ops=me.ops),
+        demo=demo,
+        users=users,
+    )
 
 
 class Switch(BaseModel):
@@ -273,15 +343,25 @@ async def feedback(body: Feedback, principal: Annotated[Principal, Depends(curre
     return Response(status_code=204)
 
 
-# A route dependency runs before the endpoint's own, so the ops tables are never read for someone else.
 @app.get("/dashboard", response_class=HTMLResponse, dependencies=[Depends(operator)])
 async def dashboard_page(
-    request: Request,
+    request: Request, source: Annotated[Literal["ui", "eval", "replay"] | None, Query()] = None
+) -> Response:
+    # The page reads /api/dashboard with the same source, which is checked here too, so a filter the dashboard
+    # doesn't have is refused before the page loads.
+    return _index(request)
+
+
+# A route dependency runs before the endpoint's own, so the ops tables are never read for someone else.
+@app.get("/api/dashboard", dependencies=[Depends(operator)])
+async def dashboard_view(
+    response: Response,
     data: Annotated[dashboard.DashboardData, Depends(dashboard_data)],
     source: Annotated[Literal["ui", "eval", "replay"] | None, Query()] = None,
-) -> Response:
+) -> dashboard.Page:
     # Aggregates only, with no question text.
-    return _page(templates.TemplateResponse(request, "dashboard.html", dashboard.page(data, source)))
+    response.headers["Cache-Control"] = "no-store"
+    return dashboard.page(data, source)
 
 
 @app.get("/healthz")

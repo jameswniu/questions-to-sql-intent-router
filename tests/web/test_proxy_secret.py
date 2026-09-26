@@ -24,7 +24,7 @@ async def test_without_the_proxy_secret_even_a_known_user_is_refused(
     behind_proxy: Recorded, client_for: ClientFor
 ) -> None:
     async with client_for(None) as direct:
-        for path in ("/", "/dashboard", "/evidence/scan/scan-1", "/no-such-page"):
+        for path in ("/", "/dashboard", "/api/session", "/api/dashboard", "/evidence/scan/scan-1", "/no-such-page"):
             response = await direct.get(path, headers={auth.USER_HEADER: "priya"})
             assert (response.status_code, response.text) == (401, web.SIGN_IN["header"]), path
         response = await direct.post("/ask", json=QUESTION, headers={auth.USER_HEADER: "omar"})
@@ -63,8 +63,9 @@ async def test_the_health_check_and_static_files_need_no_secret(client_for: Clie
     async with client_for(None) as direct:
         health = await direct.get("/healthz")
         style = await direct.get("/static/style.css")
+        script = await direct.get("/static/app.js")
     assert health.status_code == 200 and health.json() == {"ok": True}
-    assert style.status_code == 200
+    assert style.status_code == script.status_code == 200
 
 
 @pytest.mark.parametrize("secret", [None, ""])
@@ -90,6 +91,8 @@ async def test_demo_mode_ignores_the_proxy_headers(
     use_pipeline(ANSWERED)
     spoofed = via_proxy("priya")
     assert (await client.get("/dashboard", headers=spoofed)).status_code == 403
+    assert (await client.get("/api/dashboard", headers=spoofed)).status_code == 403
+    assert (await client.get("/api/session", headers=spoofed)).json()["me"]["user_id"] == "dana"
     assert (await client.post("/ask", json=QUESTION, headers=spoofed)).status_code == 200
     [record] = recorded.records
     assert record.user_id == "dana"

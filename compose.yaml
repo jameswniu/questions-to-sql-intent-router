@@ -107,8 +107,10 @@ services:
     environment:
       <<: *db-env
       PYTEST_ADDOPTS: "-p no:cacheprovider"
-      # Integration tests fail rather than skip here when the database or a password is missing.
+      # Integration tests fail rather than skip here when the database or a password is missing, and the built
+      # browser app's checks when the image has no build.
       REQUIRE_DATABASE: "1"
+      REQUIRE_WEB_BUILD: "1"
     volumes:
       - ./:/src:ro
     working_dir: /src

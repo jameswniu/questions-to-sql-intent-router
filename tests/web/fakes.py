@@ -13,6 +13,11 @@ from app.web.stream import AskFn
 
 # What the tests' sign-in proxy sends in X-Auth-Proxy-Secret, and what the app is told to expect.
 PROXY_SECRET = "a-long-random-value-only-the-proxy-knows"
+# The stand-in build's page, shaped like the one Vite writes: a module script and a stylesheet, both under /static.
+BUILT_INDEX = (
+    '<!doctype html>\n<html lang="en"><head><script type="module" crossorigin src="/static/app.js"></script>'
+    '<link rel="stylesheet" crossorigin href="/static/style.css"></head><body><div id="root"></div></body></html>\n'
+)
 
 
 # Stand-ins named and shaped like app.pipeline's events. The web layer reads events by class name and field.

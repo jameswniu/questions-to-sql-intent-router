@@ -38,18 +38,46 @@ async def test_switching_user_starts_a_new_session(client: httpx.AsyncClient) ->
     assert (await client.post("/session", json={"user": "mallory"})).status_code == 404
 
 
-async def test_the_chat_page_lists_every_demo_user_and_signs_in_the_first(client_for: ClientFor) -> None:
+async def test_the_chat_page_signs_in_the_first_demo_user_and_lists_every_one(client_for: ClientFor) -> None:
     async with client_for(None) as anonymous:
-        response = await anonymous.get("/")
-    assert response.status_code == 200
-    for user in principals().values():
-        assert f"{user.name}, {user.title}" in response.text
-    assert "Demo identity, stands in for SSO" in response.text
-    assert 'href="/dashboard"' not in response.text
-    started = session.decode(response.cookies.get(session.COOKIE))
-    assert started is not None and started.user_id == next(iter(principals()))
-    assert "httponly" in response.headers["set-cookie"].lower()
-    assert "script-src 'self'" in response.headers["content-security-policy"]
+        page = await anonymous.get("/")
+        assert page.status_code == 200 and '<div id="root">' in page.text
+        started = session.decode(page.cookies.get(session.COOKIE))
+        assert started is not None and started.user_id == next(iter(principals()))
+        assert "httponly" in page.headers["set-cookie"].lower()
+        assert "script-src 'self'" in page.headers["content-security-policy"]
+        # The page reads who it asks as from the API, on the session the page just started.
+        view = await anonymous.get("/api/session")
+    assert view.status_code == 200 and "set-cookie" not in view.headers
+    assert view.headers["cache-control"] == "no-store"
+    first = principals()[started.user_id]
+    assert view.json() == {
+        "me": {
+            "user_id": first.user_id,
+            "name": first.name,
+            "title": first.title,
+            "db_role": first.db_role,
+            "ops": False,
+        },
+        "demo": True,
+        "users": [{"user_id": p.user_id, "name": p.name, "title": p.title} for p in principals().values()],
+    }
+
+
+async def test_the_session_view_signs_in_a_new_demo_visitor_too(client_for: ClientFor) -> None:
+    # The dev server serves the page itself, so the API starts the demo session the way the page does.
+    async with client_for(None) as anonymous:
+        view = await anonymous.get("/api/session")
+    started = session.decode(view.cookies.get(session.COOKIE))
+    assert view.status_code == 200 and started is not None
+    assert view.json()["me"]["user_id"] == started.user_id == next(iter(principals()))
+
+
+async def test_only_an_operator_is_told_they_may_open_the_dashboard(client_for: ClientFor) -> None:
+    for user, ops in (("dana", False), ("sam", False), ("priya", True)):
+        async with client_for(user) as signed_in:
+            me = (await signed_in.get("/api/session")).json()["me"]
+        assert (me["user_id"], me["ops"]) == (user, ops)
 
 
 async def test_behind_the_proxy_there_is_no_switcher(client: httpx.AsyncClient) -> None:
@@ -57,8 +85,13 @@ async def test_behind_the_proxy_there_is_no_switcher(client: httpx.AsyncClient) 
     response = await client.post("/session", json={"user": "priya"}, headers=via_proxy("dana"))
     assert response.status_code == 404 and "set-cookie" not in response.headers
     page = await client.get("/", headers=via_proxy("dana"))
-    assert page.status_code == 200 and "Dana Reyes, Claims adjuster, West" in page.text
-    assert 'id="user"' not in page.text and "Demo identity" not in page.text and "Priya" not in page.text
+    assert page.status_code == 200
+    view = await client.get("/api/session", headers=via_proxy("dana"))
+    assert view.status_code == 200
+    body = view.json()
+    assert (body["demo"], body["users"]) == (False, [])
+    assert (body["me"]["name"], body["me"]["title"]) == ("Dana Reyes", "Claims adjuster, West")
+    assert "Priya" not in view.text
 
 
 async def test_behind_the_proxy_a_request_without_a_known_user_is_refused(
@@ -71,6 +104,7 @@ async def test_behind_the_proxy_a_request_without_a_known_user_is_refused(
         response = await client.post("/ask", json={"q": "How many claims?"}, headers=headers)
         assert response.status_code == 401 and response.headers["content-type"].startswith("text/plain")
         assert (await client.get("/", headers=headers)).status_code == 401
+        assert (await client.get("/api/session", headers=headers)).status_code == 401
     assert recorded.records == []
 
 
