@@ -1,0 +1,854 @@
+@import "tailwindcss";
+@import "@fontsource-variable/inter/wght.css";
+@import "@fontsource-variable/jetbrains-mono/wght.css";
+
+/*
+ * Design tokens. Every colour is a variable that dark mode redefines, so components name a role (surface, muted,
+ * accent) and never a hex. Text pairs clear WCAG AA (4.5:1), and control borders and chart marks 3:1, in both modes.
+ * Chart colours passed the palette checks for colour-vision deficiency; every bar also carries a text label.
+ */
+:root {
+  --background: #f8fafc;
+  --surface: #ffffff;
+  --surface-sunken: #f1f5f9;
+  --surface-hover: #f1f5f9;
+  --surface-raised: #ffffff;
+  --bubble: #e8edf4;
+  --border: #e2e8f0;
+  --border-strong: #cbd5e1;
+  --control: #8290a6;
+
+  --foreground: #0f172a;
+  --muted: #475569;
+  --subtle: #5b6a80;
+
+  --accent: #3b5bdb;
+  --accent-hover: #3451c6;
+  --accent-text: #3451c6;
+  --accent-soft: #eef2ff;
+  --accent-border: #c7d2fe;
+  --on-accent: #ffffff;
+
+  --success: #15803d;
+  --success-soft: #f0fdf4;
+  --success-border: #bbf7d0;
+  --warning: #a16207;
+  --warning-soft: #fefce8;
+  --warning-border: #fde68a;
+  --danger: #b91c1c;
+  --danger-soft: #fef2f2;
+  --danger-border: #fecaca;
+
+  --chart-accent: #3b5bdb;
+  --chart-accent-light: #93a5ee;
+  --chart-good: #059669;
+  --chart-bad: #b91c1c;
+  --chart-neutral: #8290a6;
+  --chart-grid: #edf1f6;
+  --chart-axis: #cbd5e1;
+
+  --sql-function: #7c3aed;
+  --sql-string: #047857;
+  --sql-number: #b45309;
+  --sql-placeholder: #be185d;
+
+  --elevation-1: 0 1px 2px rgb(15 23 42 / 0.04);
+  --elevation-2: 0 1px 2px rgb(15 23 42 / 0.04), 0 2px 6px rgb(15 23 42 / 0.05);
+  --elevation-3: 0 1px 3px rgb(15 23 42 / 0.06), 0 12px 32px -8px rgb(15 23 42 / 0.16);
+
+  --chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='%2364748b' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m4.5 6.5 3.5 3.5 3.5-3.5'/%3E%3C/svg%3E");
+
+  color-scheme: light;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #020617;
+    --surface: #0f172a;
+    --surface-sunken: #020617;
+    --surface-hover: #1e293b;
+    --surface-raised: #1e293b;
+    --bubble: #1e293b;
+    --border: #1e293b;
+    --border-strong: #334155;
+    --control: #64748b;
+
+    --foreground: #f1f5f9;
+    --muted: #cbd5e1;
+    --subtle: #94a3b8;
+
+    --accent: #3b5bdb;
+    --accent-hover: #4a68e6;
+    --accent-text: #9db0ff;
+    --accent-soft: #1a2346;
+    --accent-border: #33427a;
+
+    --success: #4ade80;
+    --success-soft: #0b2517;
+    --success-border: #14532d;
+    --warning: #fbbf24;
+    --warning-soft: #2a1f07;
+    --warning-border: #713f12;
+    --danger: #f87171;
+    --danger-soft: #2d1215;
+    --danger-border: #7f1d1d;
+
+    --chart-accent: #6d88f5;
+    --chart-accent-light: #3e5199;
+    --chart-good: #059669;
+    --chart-bad: #ef4444;
+    --chart-neutral: #64748b;
+    --chart-grid: #1e293b;
+    --chart-axis: #334155;
+
+    --sql-function: #c4b5fd;
+    --sql-string: #6ee7b7;
+    --sql-number: #fcd34d;
+    --sql-placeholder: #f9a8d4;
+
+    --elevation-1: 0 1px 2px rgb(0 0 0 / 0.4);
+    --elevation-2: 0 1px 2px rgb(0 0 0 / 0.4), 0 2px 8px rgb(0 0 0 / 0.3);
+    --elevation-3: 0 1px 3px rgb(0 0 0 / 0.5), 0 12px 32px -8px rgb(0 0 0 / 0.6);
+
+    --chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='%2394a3b8' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m4.5 6.5 3.5 3.5 3.5-3.5'/%3E%3C/svg%3E");
+
+    color-scheme: dark;
+  }
+}
+
+@theme {
+  --font-sans:
+    "Inter Variable", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-mono: "JetBrains Mono Variable", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+
+  /* An 8px grid under any root font: every spacing step is 4px, so p-2 is 8px and gap-4 is 16px. */
+  --spacing: 4px;
+
+  /* The type scale is set against the 18px root the demo recordings expect: 15, 16, 18, 20, 24, 30 and 36px. */
+  --text-xs: 0.8333rem;
+  --text-xs--line-height: 1.45;
+  --text-sm: 0.8889rem;
+  --text-sm--line-height: 1.5;
+  --text-base: 1rem;
+  --text-base--line-height: 1.6;
+  --text-lg: 1.1111rem;
+  --text-lg--line-height: 1.45;
+  --text-xl: 1.3333rem;
+  --text-xl--line-height: 1.35;
+  --text-2xl: 1.6667rem;
+  --text-2xl--line-height: 1.25;
+  --text-3xl: 2rem;
+  --text-3xl--line-height: 1.15;
+
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 8px;
+  --radius-xl: 12px;
+  --radius-2xl: 16px;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-surface: var(--surface);
+  --color-surface-sunken: var(--surface-sunken);
+  --color-surface-hover: var(--surface-hover);
+  --color-surface-raised: var(--surface-raised);
+  --color-bubble: var(--bubble);
+  --color-border: var(--border);
+  --color-border-strong: var(--border-strong);
+  --color-control: var(--control);
+  --color-foreground: var(--foreground);
+  --color-muted: var(--muted);
+  --color-subtle: var(--subtle);
+  --color-accent: var(--accent);
+  --color-accent-hover: var(--accent-hover);
+  --color-accent-text: var(--accent-text);
+  --color-accent-soft: var(--accent-soft);
+  --color-accent-border: var(--accent-border);
+  --color-on-accent: var(--on-accent);
+  --color-success: var(--success);
+  --color-success-soft: var(--success-soft);
+  --color-success-border: var(--success-border);
+  --color-warning: var(--warning);
+  --color-warning-soft: var(--warning-soft);
+  --color-warning-border: var(--warning-border);
+  --color-danger: var(--danger);
+  --color-danger-soft: var(--danger-soft);
+  --color-danger-border: var(--danger-border);
+
+  --shadow-xs: var(--elevation-1);
+  --shadow-sm: var(--elevation-2);
+  --shadow-md: var(--elevation-3);
+}
+
+@layer base {
+  /* 18px from 640px up, which the demo recordings rely on at 900px, and 16px on phones. */
+  html {
+    font-size: 16px;
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+    scroll-padding-top: 96px;
+  }
+  @media (min-width: 640px) {
+    html {
+      font-size: 18px;
+    }
+  }
+  body {
+    background: var(--background);
+    color: var(--foreground);
+    font-family: var(--font-sans);
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+  :focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
+  ::selection {
+    background: color-mix(in srgb, var(--accent) 24%, transparent);
+  }
+  code,
+  pre,
+  kbd {
+    font-family: var(--font-mono);
+    font-size: 0.9em;
+  }
+}
+
+@layer components {
+  /* The header on the chat page: the brand and pages on the left, and who is asking on the right, with the note
+     that the picker stands in for sign-in under it. On a phone the picker takes a row of its own. */
+  .topbar-grid {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    grid-template-areas: "brand nav identity";
+    align-items: center;
+    column-gap: 16px;
+  }
+  .topbar-grid > .brand {
+    grid-area: brand;
+  }
+  .topbar-grid > .pages {
+    grid-area: nav;
+  }
+  .topbar-grid > .identity {
+    grid-area: identity;
+  }
+  @media (max-width: 767px) {
+    .topbar-grid {
+      grid-template-columns: minmax(0, 1fr) auto;
+      grid-template-areas: "brand nav" "identity identity";
+      row-gap: 8px;
+    }
+  }
+
+  .identity-grid {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    grid-template-areas: "label picker" ". note";
+    align-items: center;
+    column-gap: 10px;
+    row-gap: 2px;
+  }
+  .identity-grid > label {
+    grid-area: label;
+  }
+  .identity-grid > select,
+  .identity-grid > .who {
+    grid-area: picker;
+  }
+  .identity-grid > .demo-note {
+    grid-area: note;
+  }
+  @media (max-width: 767px) {
+    .identity-grid {
+      grid-template-columns: minmax(0, 1fr);
+      grid-template-areas: "picker" "note";
+    }
+  }
+
+  .select-native {
+    appearance: none;
+    background: var(--surface) var(--chevron) right 10px center / 16px no-repeat;
+    padding-right: 34px;
+  }
+
+  /* The answer's own words. Paragraphs and bullets are the server's, one per line it sent. */
+  .answer-text {
+    line-height: 1.65;
+  }
+  .answer-text > p {
+    margin: 0 0 12px;
+  }
+  .answer-text > ul {
+    margin: 0 0 12px;
+    padding-left: 22px;
+    list-style: disc;
+  }
+  .answer-text > ul > li {
+    padding-left: 4px;
+  }
+  .answer-text > ul > li + li {
+    margin-top: 4px;
+  }
+  .answer-text > ul > li::marker {
+    color: var(--subtle);
+  }
+  .answer-text > :last-child {
+    margin-bottom: 0;
+  }
+
+  sup.cite {
+    line-height: 0;
+    margin-left: 2px;
+  }
+  sup.cite a {
+    display: inline-block;
+    min-width: 1.45em;
+    padding: 0 4px;
+    border-radius: 5px;
+    background: var(--accent-soft);
+    color: var(--accent-text);
+    font-size: var(--text-xs);
+    font-weight: 600;
+    line-height: 1.4;
+    text-align: center;
+    text-decoration: none;
+    vertical-align: 0.15em;
+    font-variant-numeric: tabular-nums;
+    transition:
+      background-color 0.15s,
+      color 0.15s;
+  }
+  sup.cite a:hover {
+    background: var(--accent);
+    color: var(--on-accent);
+  }
+
+  /* The numbered sources an answer cites. The numbers are counters, so they stay in step with the markers. */
+  ol.citations {
+    counter-reset: cite;
+    list-style: none;
+    margin: 20px 0 0;
+    padding: 16px 0 0;
+    border-top: 1px solid var(--border);
+    font-size: var(--text-sm);
+    color: var(--muted);
+  }
+  ol.citations::before {
+    content: "Sources";
+    display: block;
+    margin-bottom: 8px;
+    color: var(--subtle);
+    font-size: var(--text-xs);
+    font-weight: 600;
+    letter-spacing: 0.02em;
+  }
+  ol.citations > li {
+    counter-increment: cite;
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+    margin: 0 -8px;
+    padding: 4px 8px;
+    border-radius: var(--radius-md);
+    transition: background-color 0.2s;
+  }
+  ol.citations > li::before {
+    content: counter(cite);
+    flex: none;
+    min-width: 1.6em;
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    background: var(--surface-sunken);
+    color: var(--muted);
+    font-size: var(--text-xs);
+    font-weight: 600;
+    line-height: 1.5;
+    text-align: center;
+    font-variant-numeric: tabular-nums;
+  }
+  ol.citations > li:target {
+    background: var(--accent-soft);
+    color: var(--foreground);
+  }
+
+  /* The evidence panel. Its class names are the demo recorder's hooks, so each says what the part is. Text inside a
+     part takes its size from the part, so one rule resizes it all. */
+  details.evidence > summary {
+    list-style: none;
+  }
+  details.evidence > summary::-webkit-details-marker {
+    display: none;
+  }
+  details.evidence[open] > summary .chevron {
+    transform: rotate(90deg);
+  }
+  details.evidence .chip {
+    display: inline-flex;
+    align-items: center;
+    padding: 0 8px;
+    border: 1px solid var(--border);
+    border-radius: 9999px;
+    background: var(--surface-sunken);
+    color: var(--muted);
+    font-weight: 500;
+    line-height: 1.55;
+    white-space: nowrap;
+  }
+  details.evidence .evidence-tab .count {
+    padding: 0 7px;
+    border-radius: 9999px;
+    background: var(--surface-hover);
+    color: var(--muted);
+    font-weight: 500;
+    line-height: 1.5;
+    font-variant-numeric: tabular-nums;
+  }
+  details.evidence .evidence-tab[data-state="active"] .count {
+    background: var(--accent-soft);
+    color: var(--accent-text);
+  }
+  .evidence-panel {
+    font-size: var(--text-sm);
+  }
+
+  .role-note {
+    margin: 0 0 10px;
+    color: var(--muted);
+    font-size: var(--text-sm);
+  }
+  .role-note code,
+  .legend code,
+  .footer code {
+    padding: 1px 6px;
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    background: var(--surface-sunken);
+    color: var(--foreground);
+  }
+  pre.sql,
+  pre.code {
+    margin: 0;
+    padding: 12px 14px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    background: var(--surface-sunken);
+    color: var(--foreground);
+    font-size: var(--text-xs);
+    line-height: 1.65;
+    overflow-x: auto;
+  }
+  pre.sql {
+    padding-right: 44px;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+  }
+  pre.code {
+    white-space: pre;
+  }
+  .legend + pre.code {
+    margin-top: 6px;
+  }
+  pre.sql code,
+  pre.code code {
+    font-size: inherit;
+  }
+  .tok-kw {
+    color: var(--accent-text);
+    font-weight: 600;
+  }
+  .tok-fn {
+    color: var(--sql-function);
+  }
+  .tok-str {
+    color: var(--sql-string);
+  }
+  .tok-num {
+    color: var(--sql-number);
+  }
+  .tok-ph {
+    color: var(--sql-placeholder);
+    font-weight: 600;
+  }
+  .tok-cm {
+    color: var(--subtle);
+    font-style: italic;
+  }
+  .legend {
+    margin: 12px 0 0;
+    color: var(--subtle);
+    font-size: var(--text-sm);
+  }
+  .legend:first-child {
+    margin-top: 0;
+  }
+  .legend + .table-wrap,
+  .table-wrap + .table-wrap,
+  .legend + .legend {
+    margin-top: 12px;
+  }
+  ol.params {
+    counter-reset: param;
+    list-style: none;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px 8px;
+    margin: 8px 0 0;
+    padding: 0;
+    font-size: var(--text-sm);
+  }
+  ol.params li {
+    counter-increment: param;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+  }
+  ol.params li::before {
+    content: counter(param);
+    min-width: 1.5em;
+    border-radius: 5px;
+    background: var(--surface-hover);
+    color: var(--subtle);
+    font-size: inherit;
+    font-weight: 600;
+    line-height: 1.5;
+    text-align: center;
+  }
+  ol.params code {
+    padding: 1px 6px;
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    background: var(--surface);
+  }
+
+  /* Tables sit in a bordered box that scrolls sideways when they are wider than it. */
+  .table-wrap {
+    width: fit-content;
+    max-width: 100%;
+    overflow-x: auto;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    background: var(--surface);
+  }
+  table.rows,
+  table.split,
+  table.metrics,
+  table.chart-table {
+    border-collapse: collapse;
+    font-size: var(--text-sm);
+  }
+  table.chart-table,
+  table.metrics {
+    width: 100%;
+  }
+  :is(table.rows, table.split, table.metrics, table.chart-table) :is(th, td) {
+    padding: 7px 14px;
+    border-bottom: 1px solid var(--border);
+    text-align: left;
+    vertical-align: top;
+  }
+  :is(table.rows, table.split, table.metrics, table.chart-table) thead th {
+    background: var(--surface-sunken);
+    color: var(--muted);
+    font-size: var(--text-xs);
+    font-weight: 600;
+    white-space: nowrap;
+  }
+  :is(table.rows, table.metrics, table.chart-table) tbody tr:last-child > *,
+  table.split tfoot tr:last-child > *,
+  table.split:not(:has(tfoot)) tbody tr:last-child > * {
+    border-bottom: 0;
+  }
+  :is(table.rows, table.metrics, table.chart-table) tbody tr:hover > * {
+    background: var(--surface-hover);
+  }
+  table td.num {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+  table.split caption {
+    caption-side: top;
+    padding: 8px 14px 6px;
+    color: var(--subtle);
+    font-size: var(--text-xs);
+    font-weight: 600;
+    text-align: left;
+  }
+  table.split thead th + th {
+    text-align: right;
+  }
+  table.split tbody th {
+    font-weight: 400;
+  }
+  table.split tfoot :is(th, td) {
+    border-top: 1px solid var(--border-strong);
+    font-weight: 600;
+  }
+  table.metrics tbody th {
+    font-weight: 400;
+  }
+  table.metrics thead th + th {
+    text-align: right;
+  }
+  table.metrics .sub {
+    display: block;
+    color: var(--subtle);
+    font-weight: 400;
+  }
+  button.more {
+    padding: 0;
+    border: 0;
+    background: none;
+    color: var(--accent-text);
+    font-weight: 500;
+    text-decoration: underline;
+    text-underline-offset: 2px;
+    cursor: pointer;
+  }
+
+  .chunks {
+    display: grid;
+    gap: 8px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+  .chunks li {
+    padding: 12px 14px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    background: var(--surface);
+    font-size: var(--text-sm);
+  }
+  .chunks .where {
+    color: var(--foreground);
+    font-weight: 600;
+  }
+  .chunks .score {
+    padding: 0 8px;
+    border: 1px solid var(--border);
+    border-radius: 9999px;
+    background: var(--surface-sunken);
+    color: var(--subtle);
+    font-size: var(--text-xs);
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+  .chunks .cited {
+    padding: 0 8px;
+    border: 1px solid var(--accent-border);
+    border-radius: 9999px;
+    background: var(--accent-soft);
+    color: var(--accent-text);
+    font-weight: 600;
+    white-space: nowrap;
+  }
+  .chunks .body {
+    color: var(--muted);
+  }
+
+  figure.scan figcaption {
+    color: var(--muted);
+    font-size: var(--text-sm);
+  }
+
+  .claims {
+    display: grid;
+    gap: 8px;
+    margin: 12px 0 0;
+    padding: 0;
+    list-style: none;
+    font-size: var(--text-sm);
+  }
+  .claims li {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+    color: var(--foreground);
+  }
+  .claims li.cut {
+    color: var(--muted);
+  }
+  .claims .tag {
+    display: inline-flex;
+    flex: none;
+    align-items: center;
+    gap: 4px;
+    padding: 0 8px;
+    border: 1px solid var(--success-border);
+    border-radius: 9999px;
+    background: var(--success-soft);
+    color: var(--success);
+    font-size: var(--text-xs);
+    font-weight: 600;
+    line-height: 1.6;
+  }
+  .claims .tag svg {
+    width: 0.9em;
+    height: 0.9em;
+  }
+  .claims li.cut .tag {
+    border-color: var(--danger-border);
+    background: var(--danger-soft);
+    color: var(--danger);
+  }
+
+  /* Stage timings on one timeline, each bar starting where the step before it ended. */
+  .waterfall {
+    display: grid;
+    gap: 8px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    font-size: var(--text-sm);
+  }
+  .waterfall li {
+    display: grid;
+    grid-template-columns: minmax(0, 9rem) minmax(0, 1fr) 5rem;
+    align-items: center;
+    gap: 12px;
+  }
+  .waterfall .name {
+    overflow: hidden;
+    color: var(--muted);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .waterfall .track {
+    position: relative;
+    height: 10px;
+    border-radius: 9999px;
+    background: var(--surface-hover);
+  }
+  .waterfall .track > span {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    min-width: 3px;
+    border-radius: 9999px;
+  }
+  .waterfall .ms {
+    color: var(--muted);
+    font-variant-numeric: tabular-nums;
+    text-align: right;
+  }
+
+  /* Tab lists scroll sideways on a phone instead of wrapping. */
+  .scroll-quiet {
+    scrollbar-width: none;
+  }
+  .scroll-quiet::-webkit-scrollbar {
+    display: none;
+  }
+
+  /* The composer floats over the end of the thread, which fades out behind it. */
+  .composer {
+    background: linear-gradient(to bottom, transparent, var(--background) 24px);
+  }
+
+  .spinner {
+    width: 14px;
+    height: 14px;
+    border: 2px solid var(--border-strong);
+    border-top-color: var(--accent);
+    border-radius: 9999px;
+    animation: spin 0.8s linear infinite;
+  }
+  @keyframes spin {
+    to {
+      transform: rotate(360deg);
+    }
+  }
+
+  /* Charts are drawn at the width of their panel, so their text stays at these sizes on any screen. */
+  svg.chart {
+    display: block;
+    overflow: visible;
+    font-family: var(--font-sans);
+  }
+  svg.chart .c-label {
+    fill: var(--foreground);
+    font-size: 0.8333rem;
+  }
+  svg.chart .c-value {
+    fill: var(--foreground);
+    font-size: 0.7778rem;
+    font-weight: 500;
+    paint-order: stroke;
+    stroke: var(--surface);
+    stroke-width: 4px;
+    stroke-linejoin: round;
+  }
+  svg.chart .c-tick {
+    fill: var(--subtle);
+    font-size: 0.7222rem;
+    font-variant-numeric: tabular-nums;
+  }
+  svg.chart .c-axis-label {
+    fill: var(--subtle);
+    font-size: 0.7222rem;
+  }
+  svg.chart .c-budget-label {
+    fill: var(--muted);
+    font-size: 0.7222rem;
+    font-weight: 500;
+  }
+  svg.chart .c-grid {
+    stroke: var(--chart-grid);
+  }
+  svg.chart .c-axis {
+    stroke: var(--chart-axis);
+  }
+  svg.chart .c-budget {
+    stroke: var(--muted);
+  }
+  svg.chart .c-hit {
+    fill: transparent;
+  }
+  svg.chart .c-values {
+    pointer-events: none;
+  }
+  svg.chart .c-value-backing {
+    fill: var(--surface);
+  }
+  svg.chart .c-row {
+    transition: opacity 0.15s;
+  }
+  svg.chart[data-active] .c-row:not([data-active]) {
+    opacity: 0.35;
+  }
+  .tone-accent {
+    fill: var(--chart-accent);
+    background-color: var(--chart-accent);
+  }
+  .tone-accent-light {
+    fill: var(--chart-accent-light);
+    background-color: var(--chart-accent-light);
+  }
+  .tone-good {
+    fill: var(--chart-good);
+    background-color: var(--chart-good);
+  }
+  .tone-bad {
+    fill: var(--chart-bad);
+    background-color: var(--chart-bad);
+  }
+  .tone-neutral {
+    fill: var(--chart-neutral);
+    background-color: var(--chart-neutral);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    transition: none !important;
+    animation-duration: 0s !important;
+    animation-iteration-count: 1 !important;
+  }
+}
