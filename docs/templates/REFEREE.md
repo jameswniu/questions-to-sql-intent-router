@@ -52,7 +52,7 @@ Appears at README.md under "Run it".
 | What this sample can and cannot say | Refusing everything also scores zero, so over-restricted supervisor runs are counted, {{n dev.permissions.over_restricted}} of them. Hidden amounts, dates and names are never searched. |
 | What moves it | The list of forbidden values. Searching for hidden amounts or holder names could only raise the count. |
 
-Appears at README.md under "What could go wrong, and what stops it", and docs/EVALS.md under "Permissions".
+Appears at README.md under "What could go wrong, and what stops it", docs/DESIGN.md under "Failure modes", and docs/EVALS.md under "Permissions".
 
 ## {{n shared.hostile_sql.statements}} hostile statements run as all {{n shared.hostile_sql.roles}} roles, {{n shared.hostile_sql.harmful}} did harm
 
@@ -68,7 +68,7 @@ Appears at README.md under "What could go wrong, and what stops it", and docs/EV
 | What this sample can and cannot say | It covers these statements only. A login that could run nothing would also score zero harm. |
 | What moves it | The grants on each chat login. Granting back one revoked built-in could turn a statement harmful. |
 
-Appears at README.md under "What could go wrong, and what stops it", docs/EVALS.md under "Hostile SQL", and docs/DESIGN.md under "What SQL can do".
+Appears at README.md under "What could go wrong, and what stops it", docs/EVALS.md under "Hostile SQL", and docs/DESIGN.md under "Failure modes" and "What SQL can do".
 
 ## 13 hostile programs, all contained
 
@@ -79,12 +79,12 @@ Appears at README.md under "What could go wrong, and what stops it", docs/EVALS.
 | How a match is decided | Contained means every assertion in the test holds, such as the memory hog killed as `oom` at line 90. Pass or fail. |
 | Where the data came from | Written by the author against the limits that `docker_argv()` sets at `sandbox/sandboxd.py:73`. |
 | How to regenerate it | `make test-sandbox` at `Makefile:36`, which fails rather than skips when Docker or the image is missing. |
-| The number that makes it look worse | Of the seven limits the README names, one CPU is the only one no program exercises. `tests/sandbox/test_daemon.py:50` only checks the flag. |
+| The number that makes it look worse | Of the seven limits docs/DESIGN.md names under "Failure modes", one CPU is the only one no program exercises. `tests/sandbox/test_daemon.py:50` only checks the flag. |
 | Chosen before or after the result | After. The programs were written with the sandbox, one or two per limit, so they test known limits and not unknown escapes. |
 | What this sample can and cannot say | These limits hold on this host's Docker. Kernel escapes are untested, which is why production would use Firecracker or gVisor. |
 | What moves it | The flags in `docker_argv()` at `sandbox/sandboxd.py:73`. Dropping one breaks the test that probes it. |
 
-Appears at README.md under "What could go wrong, and what stops it".
+Appears at README.md under "What could go wrong, and what stops it", and docs/DESIGN.md under "Failure modes".
 
 ## 20 of 20 planted injections quarantined
 
@@ -100,7 +100,7 @@ Appears at README.md under "What could go wrong, and what stops it".
 | What this sample can and cannot say | It shows these 20 are caught. Twenty variants from one author say little about attacks nobody listed. |
 | What moves it | The patterns in `app/ingest/screen.py` and the `normalize()` step that undoes disguises. Narrowing either would let a variant through. |
 
-Appears at README.md under "What could go wrong, and what stops it".
+Appears at README.md under "What could go wrong, and what stops it", and docs/DESIGN.md under "Failure modes".
 
 ## Recall@5 {{n dev.retrieval.hybrid.recall_at_5}} dev, {{n heldout.retrieval.hybrid.recall_at_5}} held-out
 
@@ -180,7 +180,7 @@ Appears at README.md under "What could go wrong, and what stops it", and docs/EV
 | What this sample can and cannot say | The dev 95% floor is {{n dev.abstention.out_of_data.low}}. Always saying out of data would pass these and fail everything else. |
 | What moves it | The coverage window at `data/policy.yaml:4`. Widening it makes these questions answerable. |
 
-Appears at README.md under "What could go wrong, and what stops it", and docs/EVALS.md under "Routing and refusal".
+Appears at README.md under "What could go wrong, and what stops it", docs/DESIGN.md under "Failure modes", and docs/EVALS.md under "Routing and refusal".
 
 ## Refusal precision {{n dev.refusal.precision}} dev, {{n heldout.refusal.precision}} held-out
 
@@ -196,7 +196,7 @@ Appears at README.md under "What could go wrong, and what stops it", and docs/EV
 | What this sample can and cannot say | Refusing everything would score {{n dev.routing.per_class.refuse.support}} of {{n dev.cases.routing}} dev, the share labelled refuse. The dev 95% floor is {{n dev.refusal.precision.low}}. |
 | What moves it | The gate's patterns in `app/gate.py`. Broader patterns refuse more, raising recall and risking precision. |
 
-Appears at README.md under "What could go wrong, and what stops it" and "Numbers", and docs/EVALS.md under "Routing and refusal".
+Appears at README.md under "Numbers", and docs/EVALS.md under "Routing and refusal".
 
 ## Refusal recall {{n dev.refusal.recall}} dev, {{n heldout.refusal.recall}} held-out
 
