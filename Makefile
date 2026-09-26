@@ -1,12 +1,13 @@
 .DEFAULT_GOAL := help
 .PHONY: help secrets up up-live live-check down reset logs test test-sandbox test-unit eval eval-check eval-live claims lint psql
+.PHONY: frontend-deps frontend-lint frontend-typecheck frontend-test frontend-build frontend-check
 
 ROLES := $(shell sed -n 's/^  \(u_[a-z_]*\):.*/\1/p' data/users.yaml)
 SECRET_KEYS := POSTGRES_PASSWORD APP_WRITER_PASSWORD GOLD_READER_PASSWORD SESSION_SECRET \
 	$(foreach role,$(ROLES),PGPASS_$(shell echo $(role) | tr a-z A-Z))
 
 help: ## List targets
-	@awk 'BEGIN {FS = ":.*## "} /^[a-z-]+:.*## / {printf "  %-12s %s\n", $$1, $$2}' $(MAKEFILE_LIST)
+	@awk 'BEGIN {FS = ":.*## "} /^[a-z-]+:.*## / {printf "  %-18s %s\n", $$1, $$2}' $(MAKEFILE_LIST)
 
 secrets: ## Mint any missing password in var/secrets.env
 	@mkdir -p var && touch var/secrets.env var/no-gcloud-credentials.json && chmod 600 var/secrets.env
@@ -79,6 +80,30 @@ lint: ## Ruff and mypy
 	uv run ruff check .
 	uv run ruff format --check .
 	uv run mypy
+
+# The browser app's checks run on the host with Node 24 (frontend/.nvmrc), the way lint runs with uv. make up needs
+# neither, since the image builds the app in its own pinned Node stage.
+NPM := npm --prefix frontend
+FRONTEND_DEPS := frontend/node_modules/.package-lock.json
+
+$(FRONTEND_DEPS): frontend/package.json frontend/package-lock.json
+	$(NPM) ci --ignore-scripts
+
+frontend-deps: $(FRONTEND_DEPS) ## Install the browser app's pinned packages from its lockfile (needs Node 24)
+
+frontend-lint: $(FRONTEND_DEPS) ## ESLint, with its accessibility rules, and Prettier on the browser app
+	$(NPM) run lint
+
+frontend-typecheck: $(FRONTEND_DEPS) ## Type-check the browser app
+	$(NPM) run typecheck
+
+frontend-test: $(FRONTEND_DEPS) ## Run the browser app's Vitest and Testing Library tests
+	$(NPM) test
+
+frontend-build: $(FRONTEND_DEPS) ## Build the browser app into frontend/dist, which a host run of the app serves
+	$(NPM) run build
+
+frontend-check: frontend-lint frontend-typecheck frontend-test frontend-build ## All four browser app checks
 
 psql: ## Open psql in the database as postgres
 	docker compose exec db psql -U postgres -d claims
