@@ -23,17 +23,17 @@ The first run seeds 6,951 claims and reads 60 scanned forms, which took 2 minute
 
 | Demo | Length |
 |---|---|
-| [A figure and its SQL](https://cdn.jsdelivr.net/gh/jameswniu/questions-to-sql-intent-router@5d339ecaebc527af3e488e2baebc66dd6566b966/docs/demo/ask.mp4) | 54 s |
-| [A policy answer and its source](https://cdn.jsdelivr.net/gh/jameswniu/questions-to-sql-intent-router@5d339ecaebc527af3e488e2baebc66dd6566b966/docs/demo/policy.mp4) | 77 s |
-| [A total read from a scan](https://cdn.jsdelivr.net/gh/jameswniu/questions-to-sql-intent-router@5d339ecaebc527af3e488e2baebc66dd6566b966/docs/demo/scan.mp4) | 60 s |
-| [Why losses rose](https://cdn.jsdelivr.net/gh/jameswniu/questions-to-sql-intent-router@5d339ecaebc527af3e488e2baebc66dd6566b966/docs/demo/why.mp4) | 100 s |
-| [One claim, three users](https://cdn.jsdelivr.net/gh/jameswniu/questions-to-sql-intent-router@5d339ecaebc527af3e488e2baebc66dd6566b966/docs/demo/permissions.mp4) | 84 s |
-| [Withheld small groups](https://cdn.jsdelivr.net/gh/jameswniu/questions-to-sql-intent-router@5d339ecaebc527af3e488e2baebc66dd6566b966/docs/demo/suppression.mp4) | 85 s |
-| [A question with no period](https://cdn.jsdelivr.net/gh/jameswniu/questions-to-sql-intent-router@5d339ecaebc527af3e488e2baebc66dd6566b966/docs/demo/clarify.mp4) | 66 s |
-| [An instruction override](https://cdn.jsdelivr.net/gh/jameswniu/questions-to-sql-intent-router@5d339ecaebc527af3e488e2baebc66dd6566b966/docs/demo/injection.mp4) | 29 s |
-| [An off-topic question](https://cdn.jsdelivr.net/gh/jameswniu/questions-to-sql-intent-router@5d339ecaebc527af3e488e2baebc66dd6566b966/docs/demo/off-topic.mp4) | 23 s |
-| [A year outside the data](https://cdn.jsdelivr.net/gh/jameswniu/questions-to-sql-intent-router@5d339ecaebc527af3e488e2baebc66dd6566b966/docs/demo/out-of-range.mp4) | 25 s |
-| [The dashboard by source](https://cdn.jsdelivr.net/gh/jameswniu/questions-to-sql-intent-router@5d339ecaebc527af3e488e2baebc66dd6566b966/docs/demo/dashboard.mp4) | 105 s |
+| [A figure and its SQL](https://cdn.jsdelivr.net/gh/jameswniu/questions-to-sql-intent-router@1b00fc3759f14502f5775c8b20bea64c7b9ae290/docs/demo/ask.mp4) | 54 s |
+| [A policy answer and its source](https://cdn.jsdelivr.net/gh/jameswniu/questions-to-sql-intent-router@1b00fc3759f14502f5775c8b20bea64c7b9ae290/docs/demo/policy.mp4) | 77 s |
+| [A total read from a scan](https://cdn.jsdelivr.net/gh/jameswniu/questions-to-sql-intent-router@1b00fc3759f14502f5775c8b20bea64c7b9ae290/docs/demo/scan.mp4) | 60 s |
+| [Why losses rose](https://cdn.jsdelivr.net/gh/jameswniu/questions-to-sql-intent-router@1b00fc3759f14502f5775c8b20bea64c7b9ae290/docs/demo/why.mp4) | 100 s |
+| [One claim, three users](https://cdn.jsdelivr.net/gh/jameswniu/questions-to-sql-intent-router@1b00fc3759f14502f5775c8b20bea64c7b9ae290/docs/demo/permissions.mp4) | 84 s |
+| [Withheld small groups](https://cdn.jsdelivr.net/gh/jameswniu/questions-to-sql-intent-router@1b00fc3759f14502f5775c8b20bea64c7b9ae290/docs/demo/suppression.mp4) | 85 s |
+| [A question with no period](https://cdn.jsdelivr.net/gh/jameswniu/questions-to-sql-intent-router@1b00fc3759f14502f5775c8b20bea64c7b9ae290/docs/demo/clarify.mp4) | 66 s |
+| [An instruction override](https://cdn.jsdelivr.net/gh/jameswniu/questions-to-sql-intent-router@1b00fc3759f14502f5775c8b20bea64c7b9ae290/docs/demo/injection.mp4) | 29 s |
+| [An off-topic question](https://cdn.jsdelivr.net/gh/jameswniu/questions-to-sql-intent-router@1b00fc3759f14502f5775c8b20bea64c7b9ae290/docs/demo/off-topic.mp4) | 23 s |
+| [A year outside the data](https://cdn.jsdelivr.net/gh/jameswniu/questions-to-sql-intent-router@1b00fc3759f14502f5775c8b20bea64c7b9ae290/docs/demo/out-of-range.mp4) | 25 s |
+| [The dashboard by source](https://cdn.jsdelivr.net/gh/jameswniu/questions-to-sql-intent-router@1b00fc3759f14502f5775c8b20bea64c7b9ae290/docs/demo/dashboard.mp4) | 105 s |
 
 ## How it works
 
@@ -72,9 +72,9 @@ Live mode, scored {{n live.date}} over {{n live.runs}} runs for {{n live.cost_us
 
 ## Who sees what
 
-Two adjusters and the analyst ask about the same West claim in [this clip](https://cdn.jsdelivr.net/gh/jameswniu/questions-to-sql-intent-router@5d339ecaebc527af3e488e2baebc66dd6566b966/docs/demo/permissions.mp4).
+Two adjusters and the analyst ask about the same West claim in [this clip](https://cdn.jsdelivr.net/gh/jameswniu/questions-to-sql-intent-router@1b00fc3759f14502f5775c8b20bea64c7b9ae290/docs/demo/permissions.mp4).
 
-[<img src="docs/demo/permissions.poster.png" alt="Dana, the West adjuster, asks for the status of claim 105964 and reads that it is open, a fire loss in Colorado with $33,474 paid." width="100%">](https://cdn.jsdelivr.net/gh/jameswniu/questions-to-sql-intent-router@5d339ecaebc527af3e488e2baebc66dd6566b966/docs/demo/permissions.mp4)
+[<img src="docs/demo/permissions.poster.png" alt="Dana, the West adjuster, asks for the status of claim 105964 and reads that it is open, a fire loss in Colorado with $33,474 paid." width="100%">](https://cdn.jsdelivr.net/gh/jameswniu/questions-to-sql-intent-router@1b00fc3759f14502f5775c8b20bea64c7b9ae290/docs/demo/permissions.mp4)
 
 | Who asks | What they get |
 |---|---|
@@ -88,7 +88,7 @@ Two adjusters and the analyst ask about the same West claim in [this clip](https
 
 <img src="docs/demo/dashboard.png" alt="The operator dashboard's request, answer rate, first event and rating tiles, above two routes' latency against their p95 budgets." width="100%">
 
-[The dashboard clip](https://cdn.jsdelivr.net/gh/jameswniu/questions-to-sql-intent-router@5d339ecaebc527af3e488e2baebc66dd6566b966/docs/demo/dashboard.mp4) filters it by where each request came from.
+[The dashboard clip](https://cdn.jsdelivr.net/gh/jameswniu/questions-to-sql-intent-router@1b00fc3759f14502f5775c8b20bea64c7b9ae290/docs/demo/dashboard.mp4) filters it by where each request came from.
 
 ## What it doesn't do
 
