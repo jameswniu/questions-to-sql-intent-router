@@ -25,7 +25,7 @@ function ShareBar({ share }: { share: number }) {
   return (
     <span
       aria-hidden="true"
-      className="relative hidden h-2 w-16 shrink-0 rounded-full bg-surface-hover sm:inline-block"
+      className="relative hidden h-2 w-12 shrink-0 rounded-full bg-surface-hover sm:inline-block"
     >
       <span className="absolute inset-y-0 left-1/2 w-px bg-border-strong" />
       <span
@@ -59,9 +59,10 @@ function SplitTable({ run, dimension }: { run: SplitRun; dimension: string | nul
         <td className="num">{cell(row.count_effect, amount)}</td>
         <td className="num">{cell(row.mean_effect, amount)}</td>
         <td className="num">
-          <span className="inline-flex items-center justify-end gap-2.5">
+          <span className="inline-flex items-center justify-end gap-2">
             {row.share != null && Number.isFinite(share) && <ShareBar share={share} />}
-            <span>{cell(row.share, percent)}</span>
+            {/* As wide as the widest share, 100.0% in bold, so every row's bar sits in one column. */}
+            <span className="min-w-[4em]">{cell(row.share, percent)}</span>
           </span>
         </td>
       </tr>

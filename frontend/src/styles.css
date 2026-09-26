@@ -572,7 +572,7 @@
   }
   table.split caption {
     caption-side: top;
-    padding: 8px 14px 6px;
+    padding: 8px 12px 6px;
     color: var(--subtle);
     font-size: var(--text-xs);
     font-weight: 600;
@@ -587,6 +587,18 @@
   table.split tfoot :is(th, td) {
     border-top: 1px solid var(--border-strong);
     font-weight: 600;
+  }
+  /* A driver split has five columns, four of them figures in tabular digits, and all five fit the evidence box at
+     desktop widths. Its cells sit closer than a rows table's, 16px apart, with 12px at the box's edges. */
+  table.split :is(th, td) {
+    padding-right: 8px;
+    padding-left: 8px;
+  }
+  table.split :is(th, td):first-child {
+    padding-left: 12px;
+  }
+  table.split :is(th, td):last-child {
+    padding-right: 12px;
   }
   table.metrics tbody th {
     font-weight: 400;
