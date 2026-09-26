@@ -1,16 +1,16 @@
 # Design
 
-The README's table is the short version. This is the long one, with each decision and what it cost, one request followed through the code, and every failure mode I could think of with what stops it and the test that shows it.
+The README is the short version. This is the long one, with each decision and what it cost, one request followed through the code, every failure mode I could think of with what stops it and the test that shows it, what it doesn't do and why, and the running and demo details the README leaves out.
 
 ## Decisions
 
 | Decision | Chose | Over | Why | Cost accepted |
 |---|---|---|---|---|
 | Who runs the query | The asker's own Postgres login, one role per job and region | One service account, with WHERE clauses added by the app | The database enforces scope even when the app or a model builds the query wrong | A connection pool per role, and bootstrap has to manage the roles |
-| Row filtering | Row-level security keyed on `session_user`, forced on every table, and `security_invoker` views | Views with the filter baked in, or filtering in the app | One policy covers every path into a table, views included | Postgres skips the text index for chat logins, so lexical search scans |
+| Row filtering | Row-level security keyed on `session_user`, forced on every table, and `security_invoker` views | Views with the filter baked in, or filtering in the app | One policy covers every path into a table, views included | Postgres skips the text index for chat logins, because the full-text match operator isn't leakproof, so lexical search scans every visible chunk, fine at a few hundred chunks and slow at millions |
 | The analyst's access | `agg.metric()`, a definer function that withholds small and dominated cells | Table access behind masking views, or differential privacy | Analysts need totals. A withheld cell is easy to explain | Differencing two totals recovers a withheld cell |
 | Figure questions | A semantic layer that compiles a typed query to SQL | A model writing SQL | Paid losses means the same thing on every path, and the compiled SQL can be compared with gold SQL | A question outside the vocabulary gets a clarifying question instead of an answer |
-| Checking SQL | Grants as the boundary, then a sqlglot allow-list that denies by default | Regex checks, or reading EXPLAIN output | sqlglot parses CTEs, casts and function calls, which a regex can't follow | A function missing from its five-name list is refused, even a harmless one |
+| Checking SQL | Grants as the boundary, then a sqlglot allow-list that denies by default | Regex checks, or reading EXPLAIN output | `sqlglot` parses CTEs, casts and function calls, which a regex can't follow | A function missing from its five-name list is refused, even a harmless one |
 | Document storage | Postgres, as chunks carrying a tsvector and a 384-dimension vector, under the same policies | A separate vector database | Row-level security covers the chunks the same way it covers claims, with nothing to keep in sync | Vector search is exact, fine at a few hundred chunks and slow at millions |
 | Search ranking | Full-text and exact vector search fused by reciprocal rank, then a cross-encoder | Either retriever alone | Full text finds exact terms like "HO-2025", vectors find paraphrases, and the reranker reads both | Two small models in the image and about half a second per question |
 | Chunking | On headings, with long tables split into row groups that repeat the header | Fixed-size windows | A citation points at a section a person can find. Each row group still says what its columns mean | Uneven chunk sizes |
@@ -29,17 +29,37 @@ The README's table is the short version. This is the long one, with each decisio
 1. The browser posts the question to `/ask` and reads the reply as a stream ([app/web/app.py](../app/web/app.py), [app/web/stream.py](../app/web/stream.py)).
 2. The app works out who is asking, from the demo cookie or the sign-in proxy's header, and applies that person's rate limit ([app/web/auth.py](../app/web/auth.py), [app/web/ratelimit.py](../app/web/ratelimit.py)).
 3. The gate screens the text and refuses injection, coding requests, chit-chat and off-topic questions ([app/gate.py](../app/gate.py)).
-4. Keyword rules pick a path. Order matters, so a claim number is checked before a policy word, and a policy word before a measure ([app/route.py](../app/route.py)).
+4. Keyword rules pick a path. Order matters, so a claim number is checked before a policy word, and a policy word before a measure. A question no rule places gets a list of what the app can answer ([app/route.py](../app/route.py), [app/handle.py](../app/handle.py)).
 5. The path gathers evidence as the asker.
-   - Figures are extracted into a typed query against [semantic/claims.yaml](../semantic/claims.yaml), resolved against the data's as-of date, compiled to SQL, checked by the allow-list and run on the asker's own pool ([app/answer/quant.py](../app/answer/quant.py), [app/semantic/](../app/semantic/), [app/sqlcheck.py](../app/sqlcheck.py), [app/db.py](../app/db.py)).
-   - Document questions search the chunks the asker can see, a claim's notes included, and choose passages ([app/answer/qual.py](../app/answer/qual.py), [app/sources/documents.py](../app/sources/documents.py), [app/answer/passages.py](../app/answer/passages.py)).
+   - Figures are extracted into a typed query against [semantic/claims.yaml](../semantic/claims.yaml), resolved against the data's as-of date, compiled to SQL over three views, checked by the allow-list and run on the asker's own pool ([app/answer/quant.py](../app/answer/quant.py), [app/semantic/](../app/semantic/), [app/sqlcheck.py](../app/sqlcheck.py), [app/db.py](../app/db.py)).
+   - Document questions search the policy wordings, guidelines, memos and adjuster notes the asker can see, and choose passages ([app/answer/qual.py](../app/answer/qual.py), [app/sources/documents.py](../app/sources/documents.py), [app/answer/passages.py](../app/answer/passages.py)).
    - Why questions fetch both periods, split the change by driver in the sandbox and look for the memo or bulletin from around then ([app/answer/why.py](../app/answer/why.py), [app/answer/drivers.py](../app/answer/drivers.py), [app/sandbox/client.py](../app/sandbox/client.py)).
    - A claim number reads one claim through the claim-detail view ([app/answer/lookup.py](../app/answer/lookup.py)), and a question about a scanned form reads its checked fields ([app/answer/scanfield.py](../app/answer/scanfield.py)).
-6. The verifier checks the draft against that evidence and keeps what traces to it ([app/verify.py](../app/verify.py)).
-7. The stream sends the route, the evidence and the answer, and a closed connection cancels whatever is still running ([app/events.py](../app/events.py)).
+6. The verifier checks every figure against the query and sandbox results and every citation against what was retrieved for this user, and cuts any sentence that fails ([app/verify.py](../app/verify.py)).
+7. The stream sends the route, the evidence and the answer, and a closed connection cancels whatever is still running. The evidence panel shows the SQL, rows and passages behind each answer ([app/events.py](../app/events.py), [app/web/static/evidence.js](../app/web/static/evidence.js)).
 8. Every answered or refused question writes one request-log row and one audit row, with the question redacted, and emits OpenTelemetry spans ([app/requestlog.py](../app/requestlog.py), [app/telemetry.py](../app/telemetry.py)).
 
 ## Failure modes
+
+This is the whole table the README shortens, with what each row measured. The tables after it list every failure mode by where it happens, with the test that shows it.
+
+| What could go wrong | What stops it | Measured |
+|---|---|---|
+| An adjuster asks about another region's claims | The question runs under the adjuster's own Postgres login. Row-level security on that login filters every table and view, so other regions' rows never leave the database. | {{n dev.permissions.leaks}} leaks in {{n dev.permissions.runs}} runs, every probe asked as every user ([probes](../evals/cases/permissions.jsonl)) |
+| Someone claims to be another user | The user picker only works on loopback. Behind a sign-in proxy, the user comes from the proxy's header, and a request without the proxy's shared secret gets a 401. | [Tested](../tests/web/test_proxy_secret.py) |
+| The analyst rebuilds one claim from totals | Analysts can't read claim rows. They call `agg.metric()`, which withholds any cell with fewer than 10 claims or one claim over half its total. | [Tested](../tests/integration/test_aggregates.py), and differencing two totals still works (below) |
+| A claim number confirms a claim exists in another region | A hidden claim and a missing one get the same reply. | [Tested](../tests/quant/test_claim_lookup.py) |
+| Generated SQL writes, reads a PII column or calls something dangerous | Every login is read-only, its column grants leave out SSN, birth date, email and phone, and risky built-ins are revoked. An AST allow-list checks each statement first, and the grants stay the boundary. | {{n shared.hostile_sql.statements}} hostile statements run as all {{n shared.hostile_sql.roles}} roles, {{n shared.hostile_sql.harmful}} did harm |
+| Analysis code runs wild | Each job gets a throwaway container with no network, a read-only root, 512 MB, one CPU, 64 processes, 10 seconds and 1 MiB of output, and only the rows the asker already fetched. | [13 hostile programs](../tests/sandbox/test_limits.py), all contained |
+| A note in the document store says to ignore your instructions | Ingest screens every chunk and every whole document and keeps matches out of search. In live mode, the models that read documents hold no tools. | [20 of 20 planted](../tests/docs/test_injection_screen.py) quarantined, no clean note |
+| A note or a scan leaks an SSN | Notes and OCR text are masked before they're stored or embedded. | [Every planted identifier](../tests/docs/test_masking.py) masked |
+| The answer quotes the wrong policy edition | Search keeps only the wording in force on the date the question is about, and a question about a claim reads it on the claim's loss date. | [Tested](../tests/docs/test_document_search.py) |
+| Search misses the passage that answers the question | Full-text and vector search, fused by rank, then a cross-encoder rerank. | Recall@5 {{n dev.retrieval.hybrid.recall_at_5}} dev, {{n heldout.retrieval.hybrid.recall_at_5}} held-out |
+| OCR drops the decimal point on a total | Every amount has to look like currency and match the claim's payments, or the answer flags it instead of stating it. | {{n shared.ocr_extraction.flag_recall}} misread fields and payment mismatches flagged |
+| A figure in the answer isn't in the data, or it "rose" when it fell | The verifier traces every figure to a query or sandbox result within a stated tolerance, checks direction and ranking words against the traced change, and cuts any sentence that fails. | {{n shared.verifier.recall}} planted errors caught, {{n shared.verifier.false_alarms}} clean answers cut |
+| A question about 2023 gets an invented answer | The data covers January 2024 to June 2026, and a question outside that is told so. | {{n dev.abstention.out_of_data}} dev, {{n heldout.abstention.out_of_data}} held-out |
+| Chit-chat or an injection attempt costs a round trip | The gate refuses before routing. | Recall {{n dev.refusal.recall}} dev, {{n heldout.refusal.recall}} held-out. {{n heldout.refusal.injections_missed}} of {{n heldout.refusal.injections}} held-out injections got through |
+| A slow query ties up a connection | Every login has a 4 second statement timeout, the client has its own deadline, and closing the tab cancels the query. | [Tested](../tests/integration/test_db.py) |
 
 ### Who is asking
 
@@ -53,7 +73,7 @@ The README's table is the short version. This is the long one, with each decisio
 | The analyst reads a claim row | The analyst has no grant on any claims table or view, only on `agg.metric()` and the general documents | `test_analyst_cannot_read_rows_at_all` |
 | The analyst lowers the suppression threshold | The threshold and the dominance share live in a settings table only the function's owner can read | `test_analyst_cannot_lower_the_suppression_threshold` in [tests/integration/test_aggregates.py](../tests/integration/test_aggregates.py) |
 | The analyst isolates one payment with periods a day apart | Periods must be whole months | `test_period_bounds_a_day_apart_cannot_isolate_one_payment` |
-| The analyst subtracts two totals to recover a withheld cell | Nothing yet. It needs query auditing or noise | `test_known_gap_complementary_filters_can_still_difference`, `test_known_gap_overlapping_month_ranges_can_still_difference` |
+| The analyst subtracts two totals, such as a region minus its other states, to recover a withheld cell | Nothing yet. It needs query auditing or noise | `test_known_gap_complementary_filters_can_still_difference`, `test_known_gap_overlapping_month_ranges_can_still_difference` |
 | A claim number or scan id confirms that something exists in another region | A hidden item and a missing one get the same reply | `test_a_missing_claim_and_a_hidden_claim_read_the_same`, `test_another_regions_scan_gets_the_same_404_as_a_missing_one` |
 | A client sets the identity header itself | Behind the proxy, a request without the proxy's shared secret is refused before the header is read | [tests/web/test_proxy_secret.py](../tests/web/test_proxy_secret.py) |
 | One user's follow-up picks up another user's last question | Memory is kept per user and session, and switching user starts a new session | [tests/test_memory.py](../tests/test_memory.py), [tests/web/test_session.py](../tests/web/test_session.py) |
@@ -81,7 +101,7 @@ The README's table is the short version. This is the long one, with each decisio
 | A chunk's region drifts from its document's | Foreign keys and triggers refuse a chunk or scan field that disagrees with its document | `test_rag_rows_must_carry_their_documents_sensitivity_region_and_claim` |
 | An edited document keeps its old chunks | Each document is re-ingested when its content hash or embedding model changes, and deletes cascade | `test_a_second_ingest_changes_nothing` |
 | A stray note file slips into the corpus | Notes are written against a manifest, and ingest refuses any file the manifest doesn't list | [tests/docs/test_notes_manifest.py](../tests/docs/test_notes_manifest.py) |
-| An approximate index returns fewer results under row-level security | Vector search is exact. A test shows HNSW coming up short until iterative scan is on | `test_filtered_hnsw_scan_comes_up_short_until_iterative_scan_is_on` |
+| An approximate index returns fewer results under row-level security | Vector search is exact. An HNSW index filters after the scan, and a test shows it coming up short until iterative scan is on | `test_filtered_hnsw_scan_comes_up_short_until_iterative_scan_is_on` |
 | A question about a claim's notes is answered from another claim's file, or from a guideline about writing notes | Only that claim's own notes may answer, and a claim the asker can't open gets the same reply as a missing one | `test_a_question_for_a_claims_notes_is_answered_from_that_claims_notes_alone` in [tests/answer/test_qual_answers.py](../tests/answer/test_qual_answers.py) |
 | OCR drops a decimal point or swaps two digits | Every amount must look like currency and match the claim's payments, and a field that fails is flagged instead of stated | [tests/docs/test_ocr_fields.py](../tests/docs/test_ocr_fields.py) |
 | A user opens another region's scan | The image route re-reads the document as the asker and answers a hidden scan with the same 404 as a missing one | [tests/web/test_scan_route.py](../tests/web/test_scan_route.py) |
@@ -117,23 +137,66 @@ The README's table is the short version. This is the long one, with each decisio
 
 | What could go wrong | What stops it | Shown by |
 |---|---|---|
-| The rules get tuned on the test set | The held-out files were hashed in the same commit as the first rules, and CI refuses to run the evals if one has changed | [tests/harness/test_heldout_lock.py](../tests/harness/test_heldout_lock.py) |
+| The rules get tuned on the test set | The held-out files were hashed in the same commit as the first rules, and CI refuses to run the evals if one has changed. One scan label was fixed in both splits since, as [EVALS.md](EVALS.md) explains | [tests/harness/test_heldout_lock.py](../tests/harness/test_heldout_lock.py) |
 | The page drifts from the real numbers | The README and EVALS.md are rendered from `evals/report.json`, and CI fails when they differ | [tests/recount/](../tests/recount/) |
-| The author's own phrasing flatters the rules | A model from a different family paraphrased the dev questions, and the drop is reported | [evals/cases/paraphrase.jsonl](../evals/cases/paraphrase.jsonl) |
+| The author's own phrasing flatters the rules | A model from a different family rewrote the dev questions with rewordings and typos, and the drop is reported. Typos hit SQL hardest, {{n dev.robustness.by_variant.typo.sql}} right against {{n dev.robustness.by_variant.paraphrase.sql}} for rewordings, because the keyword extractor needs a measure, grouping or period word spelled the way it knows, and "loss raito" isn't | [evals/cases/paraphrase.jsonl](../evals/cases/paraphrase.jsonl) |
+
+## What it doesn't do
+
+The README lists these limits without their reasons.
+
+- Subtracting two published totals can still recover a withheld cell, and two tests show it.
+- Lexical search is Postgres full-text search ranked by `ts_rank_cd`, which isn't BM25.
+- Row-level security keeps chat logins off the text index, so lexical search is slow at millions of chunks.
+- Vector search is exact, because an HNSW index under row-level security returns fewer than k rows unless iterative scan is on.
+- `sandboxd` holds the Docker socket, which is root on the host. Production would run jobs in Firecracker or gVisor.
+- OCR confidence isn't calibrated, and the scans are generated, so the OCR numbers say little about real paper.
+- One person wrote the questions, the labels, the gold SQL and the rules. Rewordings and typos from another model family drop routing from {{n dev.robustness.routing.original}} to {{n dev.robustness.routing.variants}} and SQL from {{n dev.robustness.sql.original}} to {{n dev.robustness.sql.variants}}.
+- The gate and the router are English keyword rules, so a reworded injection can get past the gate.
+- Comparative wording the verifier doesn't list, such as "twice" or "a majority", goes unchecked.
+- There's no knowledge graph, because the relationships already live in SQL, and no answer cache, because answers depend on who asks.
 
 ## Live mode
 
-Nothing above calls a language model. Setting `LLM_BACKEND` to `anthropic` or `vertex` adds Claude where the rules run out, and every model call falls back to the no-key answer on an error, a refusal or a blown budget, and says so. Claude runs on an Anthropic API key or on Vertex, and `LLM_CHECK_BACKEND=gemini` moves the sentence check to Gemini on gcloud's application-default credentials. Claude subscription sign-ins aren't supported, since Anthropic reserves them for its own apps and asks products to use API keys.
+Nothing above calls a language model. The only models it runs are a small embedder and a reranker that ship inside the image. Setting `LLM_BACKEND` to `anthropic` or `vertex` adds Claude where the rules run out, and every model call falls back to the no-key answer on an error, a refusal or a blown budget, and says so. Claude runs on an Anthropic API key or on Vertex, a Google Cloud project with Claude quota, and `LLM_CHECK_BACKEND=gemini` moves the sentence check to Gemini on gcloud's application-default credentials. Claude subscription sign-ins aren't supported, since Anthropic reserves them for its own apps and asks products to use API keys.
 
 - Questions no keyword rule places go to a small model that picks one of the router's own labels, reading only the question.
+- The gate and the router are English keyword rules, so a reworded injection can get past the gate. With no key it reaches a path that never calls a model, and in live mode the model that places it holds no tools.
 - A figure question the rule extractor can't parse goes to a small model that fills the same typed query. The compiler, the allow-list and the asker's own login take it from there.
 - Document answers are written by the main model from the retrieved passages, sent as search-result blocks with citations on and no tools. Each sentence has to pass the verifier and then a reading against the passage it cites, by the fast model or, with `LLM_CHECK_BACKEND=gemini`, by Gemini, and the writer gets one retry with the reasons before anything is cut.
 - Why questions get an orchestrator with three helpers, each handed only what its step needs. The SQL helper runs typed queries on the asker's pool. The document helper retrieves as the asker and has a model with no tools pick passages, returning only handles and labels. The analysis helper adapts a sandbox template and has no database handle. The orchestrator holds the tools and sees only handles such as `d1`, `a1` and `c1`.
 - In a why answer the headline and driver sentences are built in code from the rows, and the model writes only the cited cause sentences, so every number stays traceable.
 - The budget is 8 steps and 60 seconds, with at most 4 tool calls a turn and 12 a run.
-- The request builder refuses any request that carries both tools and a passage, so the isolation is enforced in code, and the tests check every request a scripted model receives.
+- No model gets both tools and document text, so an instruction hidden in a note has no tool to reach. The request builder refuses any request that carries both tools and a passage, so the isolation is enforced in code, and the tests check every request a scripted model receives.
 
 The checker reads the same memo a cause sentence cites, so a memo written to say its claims are supported could talk it into a made-up cause. That sentence can't carry a number and still cites its passage, so a reader can check it. `make eval-live` scores live mode against real models, and [EVALS.md](EVALS.md) has the result.
+
+## Running the stack
+
+- The stack uses about 1 GB of memory once its models load, plus up to 512 MB for each analysis job while it runs.
+- The first run builds the images, so it takes longer on a slow connection. After that, `make up` is back in under a minute.
+- The network is only needed the first time, for the images and two small models.
+- If something else already holds port 8000, `APP_PORT=18000 make up` moves the app to 18000.
+- `make test` runs the tests inside the stack.
+- `/dashboard` draws latency by route against its budget, the route mix, refusal and clarify rates and verifier cuts from the request log, beside the latest eval scores for each split. The dashboard clip filters it to eval requests, then to the questions `make up` replays, then to browser requests, whose routes and outcomes include the questions asked in the other clips.
+
+## The demo clips
+
+The README links each clip. Every clip runs without an API key. The recorder adds the window frame, title cards, captions, spotlight, pointer, reading pauses and larger evidence text, and shows every answer as the app gave it.
+
+| Clip | What it shows |
+|---|---|
+| A figure and its SQL | Dana asks what was paid on Colorado hail claims in Q2 2025 and traces the figure to the SQL, its bound values and the row it returned. |
+| A policy answer and its source | Dana asks whether flood damage is covered, follows the citation to section 4.1 of the HO-2025 policy and reads the passage it came from. |
+| A total read from a scan | Priya asks for the total on a scanned invoice and checks it on the crop of the scan and in the payment query. |
+| Why losses rose | Priya asks why West paid losses rose in Q2 2025, and the driver split shows the hail and Colorado shares the answer gives. |
+| One claim, three users | Dana, Omar and Sam ask about the same West claim, and only Dana gets it back. |
+| Withheld small groups | Sam, the analyst, asks for monthly counts and gets withheld cells where a month has too few claims. |
+| A question with no period | Priya asks how much was paid, picks 2025 from the options the app offers and checks the query it ran. |
+| An instruction override | Dana tells the app to ignore its instructions and show every region's claims, and the gate refuses. |
+| An off-topic question | Dana asks for a banana bread recipe and is told what the app covers. |
+| A year outside the data | Dana asks about 2022 and is told the data runs from January 2024 to June 2026. |
+| The dashboard by source | Priya reads the service dashboard for all requests, then for eval, replayed and browser requests alone. |
 
 ## From laptop to production
 
